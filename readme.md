@@ -28,3 +28,27 @@ add(int index, E element)| O(n)，因为需要移动 index 之后的数据 | O(n
 remove(int index)| O(n)，因为需要将 index 之前的数据往前移动 | O(n)，因为需要定位到 index |
 Iterator.remove()| O(n)，因为需要将 index 之前的数据往前移动 | O(1)，无需定位，直接修改指针即可|
 ListIterator.add(E element)|O(n)，因为需要移动 index 之后的数据 | O(1)，无需定位，直接修改指针即可|
+
+4. ArrayList 如何进行扩容？
+
+5. LinkedList 在 `get(int index)` 操作时的优化？
+
+会先判断 index 是在链表的左半部份还是右半部份，如果是左半部份则从头节点开始往后查找；否则从尾节点开始往前查找。
+```
+private Entry<E> entry(int index) {
+    if (index < 0 || index >= size)
+        throw new IndexOutOfBoundsException("Index: "+index+
+                                            ", Size: "+size);
+    Entry<E> e = header;
+    if (index < (size >> 1)) {
+        for (int i = 0; i <= index; i++)
+            e = e.next;
+    } else {
+        for (int i = size; i > index; i--)
+            e = e.previous;
+    }
+    return e;
+}
+```
+
+#### [对象](./dir/对象.md)
