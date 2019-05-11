@@ -44,3 +44,35 @@ private Entry<E> entry(int index) {
     return e;
 }
 ```
+
+6. 4. HashMap：jdk1.8 之前并发操作 hashmap 时为什么会有死循环的问题？
+
+- 了解其数据结构、hash 冲突如何解决（链表和红黑树）
+
+HashMap 内部维护了一个 `Entry<K,V>[]` 数组，其中 Entry 是一个键值对结构，它的 key 和 value 对应的是 HashMap.put 的 key 跟 value，同时 Entry 中还包含了一个指向下一节点的 next 属性，所以可以将 Entry 数组看作是一个链表数组。当往 HashMap 中添加数据的时候，会将给定 key 的 hash 映射到 Entry 数组的下标，新建一个 Entry 对象，并将 Entry 对象添加到链表的末尾。但是如果有过多元素都被映射到了同一个数组下标，就会导致链表的长度过长，从而在获取元素的时候时间变长，因此在 Java 8 中做了一个判断，如果链表的长度超过了 8，就会将链表转换为一棵**红黑树**（添加红黑树的描述），其中树的排序默认按照 key 的 hashcode，而如果 key 的类实现了 `Comparator` 接口的话，则会按照 `compareTo` 的结果进行排序；另外如果树的元素被删除到小于等于 6 个的话，就会将树转换回链表。
+
+- 对 key.hashCode 做了哪些操作来减少哈希冲突？
+
+因为 key 的 hash 在是通过对数组长度进行取余来映射到某个下标的，所以为了尽量避免多个 hash 映射到同一个下标，从而造成哈希冲突，HashMap 采取了一些方法来对 key.hashCode 进行重新计算，使得它们的分布会更平均。本质上都是将 hashCodee 的高位比特与低位比特进行异或操作，从而使得低位比特的值更加平均，因为取余时决定结果的只是低位比特的值。
+
+- hashmap 的数组长度为什么要保证是 2 的幂？
+
+HashMap 选择将数组的大小设置为 2 的幂次方，这样在进行取余的时候，可以直接使用 `hash & (数组长度-1)`，提高了效率。
+
+- 什么时候会触发扩容、扩容时避免 rehash 的优化
+
+为了减少哈希冲突，当 HashMap 中的元素个数，也就是 size 属性大于等于一定大小的时候，会选择将 Entry 数组进行扩容，这个大小为 `loadFactor*数组长度`，其中 `loadFactor` 默认为 0.75。当进行数组扩容的时候，会新建一个原来数组长度 2 倍的新数组，并将旧数组的元素迁移到新数组上。在 Java 7 中，迁移的过程就是直接对旧数组的每一个链表计算它们在新数组的下标，然后拷贝到新数组对应下标，而在 Java 8 中，对迁移过程做了优化。
+
+因为新的数组大小（newLength）是旧数组（oldLength）的两倍，且都是 2 的幂次方，所以 hash 在对 oldLength 和对 newLength 取余时的结果差异只取决于 hash 在 oldLength 的 1 比特所在位的比特值，例如：
+
+```
+oldLength=4 -> 0100
+newLength=8 -> 1000
+hash = 5    -> 0101
+oldIndex = hash%oldLength = hash&(oldLength-1) = 0101 & 0011 = 0001
+newIndex = hash%newLength = hash&(newLength-1) = 0101 & 0111 = 0101
+```
+
+因为 hash 的第一位比特是 1，所以 newIndex 与 oldIndex 不一样，并且比 oldIndex 大了 oldLength，因此可以直接通过：
+
+`hash & oldLength==0` 来判断该元素的新下标是否与原来相同，并且如果不同，可以直接通过 `newIndex=oldIndex+oldLength` 来决定新的数组下标。
