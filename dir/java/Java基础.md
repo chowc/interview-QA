@@ -76,3 +76,23 @@ newIndex = hash%newLength = hash&(newLength-1) = 0101 & 0111 = 0101
 因为 hash 的第一位比特是 1，所以 newIndex 与 oldIndex 不一样，并且比 oldIndex 大了 oldLength，因此可以直接通过：
 
 `hash & oldLength==0` 来判断该元素的新下标是否与原来相同，并且如果不同，可以直接通过 `newIndex=oldIndex+oldLength` 来决定新的数组下标。
+
+- `put(key, val)` 的时候是前插还是后插？
+
+作为链表的最后一个节点插入（如果还没有 treeify 的话）。
+
+- rehash 的时候是前插还是后插？
+
+rehash 时将每个节点作为链表的头插入。
+
+- 并发操作 hashmap 时为什么会有死循环的问题？
+
+存在并发操作导致 map 中的链表出现循环的情况。
+
+- 一些默认值
+
+参数 | 默认值
+---|---
+loadFactor | 0.75
+initialCapacity | 16
+threshold | loadFactor*initialCapacity = 12
