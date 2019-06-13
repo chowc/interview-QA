@@ -5,9 +5,14 @@
 1. 经常使用的集合类有哪些？
 2. 讲述一下集合类的类继承关系？TreeSet 继承了哪些接口？TreeMap 继承了哪些接口？
 
-![Collection 集合继承关系，哪些是接口，哪些是抽象类]()
+- Collection 集合继承关系
+![](../img/collection_hierarchy.jpg)
 
-![Map 继承关系，哪些是接口，哪些是抽象类]()
+- Map 继承关系
+![](../img/map_hierarchy.jpg)
+
+- Deque 继承关系
+![](../img/deque_hierarchy.jpg)
 
 3. ArrayList 与 LinkedList 的实现和区别？
 
