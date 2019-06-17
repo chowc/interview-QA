@@ -2,7 +2,6 @@ Java 基础
 
 ### 普通集合
 
-#### 经常使用的集合类有哪些？
 #### 讲述一下集合类的类继承关系？TreeSet 继承了哪些接口？TreeMap 继承了哪些接口？
 
 - Collection 集合继承关系
@@ -105,5 +104,94 @@ initialCapacity | 16
 threshold | loadFactor*initialCapacity = 12
 
 #### LinkedHashMap：了解基本原理、哪两种有序、如何用它实现 LRU？
+
+另外维护了一个双向链表，链表元素为 Map 中的每一个 Entry，从而保持有序性。默认排序是按照元素的插入顺序，也可以指定使用元素的访问顺序进行排序。
+
+LinkedHashMap 有一个构造方法，允许接收一个 Map 对象 ，并返回它的拷贝，同时保持接收 Map 对象元素的插入顺序。
+
+构造一个按照访问顺序排序的 Map：
+
+`LinkedHashMap(int initialCapacity, float loadFactor, boolean accessOrder)`
+
+- 当 accessOrder 为 true，表示按照元素的*访问顺序*进行排序；
+- 当 accessOrder 为 false，表示按照元素的*插入顺序*进行排序。
+
+会修改访问顺序的操作：
+
+- put
+- get
+- putAll
+
+LinkedHashMap 继承了 HashMap，在执行了 put 等方法之后会调用 `afterNodeAccess` 方法，LinkedHashMap 实现了 `afterNodeAccess` 方法，用于对元素按照访问顺序进行排序。
+
+```java
+// 将最近一次访问的节点 e 移到链表最后
+void afterNodeAccess(Node<K,V> e) { // move node to last
+    LinkedHashMap.Entry<K,V> last;
+    if (accessOrder && (last = tail) != e) {
+        LinkedHashMap.Entry<K,V> p =
+            (LinkedHashMap.Entry<K,V>)e, b = p.before, a = p.after;
+        p.after = null;
+        if (b == null)
+            head = a;
+        else
+            b.after = a;
+        if (a != null)
+            a.before = b;
+        else
+            last = b;
+        if (last == null)
+            head = p;
+        else {
+            p.before = last;
+            last.after = p;
+        }
+        tail = p;
+        ++modCount;
+    }
+}
+```
+
+LinkedHashMap 还提供了一个 `removeEldestEntry` 方法，可以选择覆盖该方法，当该方法返回 true 的时候会移除掉链表头的元素，配合 `accessOrder` 一起使用，则可以实现移除最久没有被访问的元素。
+
+- 使用 LinkedHashMap 实现 LRU，[Leetcode 相关问题](https://leetcode.com/problems/lru-cache/)
+
+```java
+public class LRUCache<K, V> {
+    private int capacity;
+    private Map<K, V> cache;
+    private static int DEFAULT_INIT_CAPACITY = 16;
+    private static float DEFAULT_LOAD_FACTOR = 0.75F;
+
+    public LRUCache(int capacity) {
+        this.capacity = capacity;
+        this.cache = new LinkedHashMap<K, V>(DEFAULT_INIT_CAPACITY, DEFAULT_LOAD_FACTOR, true) {
+            @Override
+            protected boolean removeEldestEntry(Map.Entry<K, V> eldest) {
+                return size() > capacity;
+            }
+        };
+    }
+
+    /**
+     * return value or null if not contains key
+     * @param key
+     * @return
+     */
+    public V get(K key) {
+        return cache.get(key);
+    }
+
+    /**
+     * add {key, value} to cache
+     * @param key
+     * @param value
+     */
+    public void put(K key, V value) {
+        cache.put(key, value);
+    }
+}
+```
+
 #### TreeMap：了解数据结构、了解其 key 对象为什么必须要实现 Compare 接口、如何用它实现一致性哈希？
 #### 修改 Iterator.next() 返回的对象有问题吗？
