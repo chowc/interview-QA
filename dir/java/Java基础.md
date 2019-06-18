@@ -109,7 +109,7 @@ threshold | loadFactor*initialCapacity = 12
 
 LinkedHashMap 有一个构造方法，允许接收一个 Map 对象 ，并返回它的拷贝，同时保持接收 Map 对象元素的插入顺序。
 
-构造一个按照访问顺序排序的 Map：
+构造一个 Map，包含原 Map 的所有元素，并且保留原 Map 的元素顺序（与遍历原 Map 的结果保持一致）：
 
 `LinkedHashMap(int initialCapacity, float loadFactor, boolean accessOrder)`
 
@@ -121,6 +121,8 @@ LinkedHashMap 有一个构造方法，允许接收一个 Map 对象 ，并返回
 - put
 - get
 - putAll
+
+重复插入相同的元素不会改变该元素的插入顺序。
 
 LinkedHashMap 继承了 HashMap，在执行了 put 等方法之后会调用 `afterNodeAccess` 方法，LinkedHashMap 实现了 `afterNodeAccess` 方法，用于对元素按照访问顺序进行排序。
 
@@ -194,4 +196,21 @@ public class LRUCache<K, V> {
 ```
 
 #### TreeMap：了解数据结构、了解其 key 对象为什么必须要实现 Compare 接口、如何用它实现一致性哈希？
+
+底层使用红黑树维持节点的有序性，各个操作的时间复杂度如下：
+
+
+#### LinkedHashMap、TreeMap 操作时间复杂度比对
+
+类 | 操作 | 时间复杂度
+---|---|---
+LinkedHashMap | put | 
+LinkedHashMap | get | O(1)
+LinkedHashMap | containsKey | 
+LinkedHashMap | remove | 
+TreeMap | put | O(logN)
+TreeMap | get | O(logN)
+TreeMap | containsKey | O(logN)
+TreeMap | remove | O(logN)
+
 #### 修改 Iterator.next() 返回的对象有问题吗？
