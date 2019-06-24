@@ -197,17 +197,17 @@ public class LRUCache<K, V> {
 
 #### TreeMap：了解数据结构、了解其 key 对象为什么必须要实现 Compare 接口、如何用它实现一致性哈希？
 
-底层使用红黑树维持节点的有序性，各个操作的时间复杂度如下：
+底层使用红黑树维持节点的有序性。
 
 
 #### LinkedHashMap、TreeMap 操作时间复杂度比对
 
 类 | 操作 | 时间复杂度
 ---|---|---
-LinkedHashMap | put | 
+LinkedHashMap | put | removeEldestEntry 返回 false，O(1)；removeEldestEntry 返回 true，则是 HashMap.remove 的时间复杂度，依然是 O(1)
 LinkedHashMap | get | O(1)
-LinkedHashMap | containsKey | 
-LinkedHashMap | remove | 
+LinkedHashMap | containsKey | O(1)
+LinkedHashMap | remove | O(1)
 TreeMap | put | O(logN)
 TreeMap | get | O(logN)
 TreeMap | containsKey | O(logN)
