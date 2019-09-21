@@ -1,0 +1,5 @@
+- MySQL 事务有哪些隔离级别？（在 InnoDB 引擎下）
+- binlog 是什么？
+- redo log 是什么？
+- InnoDB 的事务是如何实现的？
+- MVCC 是怎么实现的？
