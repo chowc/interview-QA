@@ -3,3 +3,5 @@
 - redo log 是什么？
 - InnoDB 的事务是如何实现的？
 - MVCC 是怎么实现的？
+- SQL 关键字的执行顺序
+- Explain 包含哪些列
