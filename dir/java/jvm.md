@@ -47,9 +47,9 @@ JVM 预定义的类加载器有以下几种：
 
 1. 启动（Bootstrap）类加载器：是用本地代码实现的类装入器，它负责将 <Java_Runtime_Home>/lib下面的类库加载到内存中（比如rt.jar）。由于引导类加载器涉及到虚拟机本地实现细节，开发者无法直接获取到启动类加载器的引用，所以不允许直接通过引用进行操作。
 2. 标准扩展（Extension）类加载器：是由 Sun 的 ExtClassLoader（sun.misc.Launcher$ExtClassLoader）实现的。它负责将 `<Java_Runtime_Home >/lib/ext` 或者由系统变量 `java.ext.dir` 指定位置中的类库加载到内存中。开发者可以直接使用标准扩展类加载器。
-3. 系统（System）类加载器：是由 Sun 的 AppClassLoader（sun.misc.Launcher$AppClassLoader）实现的。它负责将系统类路径（CLASSPATH）中指定的类库加载到内存中。开发者可以直接使用系统类加载器。
+3. 应用程序（Application）类加载器/系统（System）类加载器：是由 Sun 的 AppClassLoader（sun.misc.Launcher$AppClassLoader）实现的。它负责将系统类路径（CLASSPATH）中指定的类库加载到内存中。开发者可以直接使用系统类加载器。
 
-另外用户也可以通过继承 `ClassLoader` 並覆盖 `findClass(String name)` 方法来定义自己的类加载器。
+另外用户也可以通过继承 `java.lang.ClassLoader` 並覆盖 `findClass(String name)` 方法来定义自己的类加载器。
 
 它们的层级关系如下：
 
@@ -62,7 +62,35 @@ JVM 预定义的类加载器有以下几种：
 
 - Tomcat 的 classloader 结构
 
+以 Tomcat 6 为例，[其类加载器结构如下](http://tomcat.apache.org/tomcat-6.0-doc/class-loader-howto.html)：
 
+      Bootstrap
+          |
+       System
+          |
+       Common
+       /     \
+	Webapp1   Webapp2
+
+
+其中各个类加载器的说明如下：
+
+1. Bootstrap：相当于是 JVM 中的 Bootstrap 类加载器 + 标准扩展类加载器；
+2. System：系统类加载器；
+3. Common：该加载器加载的类对 Tomcat 和所有 Web 应用都可见，该加载器加载的目录由 `$CATALINA_BASE/conf/catalina.propertie` 配置文件中的 common.loader 指定，默认的话会按以下顺序进行查找加载：
+
+	1. `$CATALINA_BASE/lib` 下的 class；
+	2. `$CATALINA_BASE/lib` 下的 lib；
+	3. `$CATALINA_HOME/lib` 下的 class；
+	4. `$CATALINA_HOME/lib` 下的 lib。
+
+4. WebappX：每个 Web 应用单独拥有的类加载器，负责加载应用目录下 `/WEB-INF/classes` 所有解压缩的类和资源、`/WEB-INF/lib` 下 Jar 包，仅对自身的 Web 容器可见；
+
+另外，Tomcat 中类加载器的实现与双亲委派机制有些许不同，
+
+> When a request to load a class from the web application's WebappX class loader is processed, this class loader will look in the local repositories first, instead of delegating before looking. There are exceptions. Classes which are part of the JRE base classes cannot be overriden. For some classes (such as the XML parser components in J2SE 1.4+), the J2SE 1.4 endorsed feature can be used. Last, any JAR file that contains Servlet API classes will be explicitly ignored by the classloader — Do not include such JARs in your web application. All other class loaders in Tomcat 6 follow the usual delegation pattern.
+
+也就是说，当 WebappX 类加载器要加载一个类的时候（除了 JDK 类库中的类外），不是先委派父加载器进行加载，而是自己先尝试进行加载，加载失败才会委派给父类。
 
 - 如何自己实现一个 classloader 打破双亲委派
 
