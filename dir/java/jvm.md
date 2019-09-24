@@ -94,6 +94,8 @@ JVM 预定义的类加载器有以下几种：
 
 - 如何自己实现一个 classloader 打破双亲委派
 
+1. 继承 `java.lang.ClassLoader` 並覆盖 `loadClass` 方法，重写类加载的顺序逻辑，例如：Tomcat 的 WebappClassLoader；
+2. 
 
 #### GC
 - 垃圾回收基本原理
