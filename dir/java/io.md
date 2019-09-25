@@ -32,6 +32,27 @@
 
 - select、poll、eopll 的区别？
 
+1. select
+
+```c
+int select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset, nconst struct timeval *timeout)
+返回值：就绪描述符的数目，超时返回 0，出错返回 -1
+```
+
+select 的几大缺点：
+
+（1）每次调用 select，都需要把 fd 集合从用户态拷贝到内核态，这个开销在 fd 很多时会很大
+
+（2）同时每次调用 select 都需要在内核遍历传递进来的所有fd，这个开销在 fd 很多时也很大
+
+（3）select 支持的文件描述符数量太小了，默认是1024
+
+2. poll
+
+3. epoll
+
+epoll 包含了三个函数。
+
 - reactor 线程模型是什么?
 
 1. 单请求单线程
