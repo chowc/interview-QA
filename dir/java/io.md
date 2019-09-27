@@ -41,17 +41,33 @@ int select(int maxfdp1, fd_set *readset, fd_set *writeset, fd_set *exceptset, nc
 
 select 的几大缺点：
 
-（1）每次调用 select，都需要把 fd 集合从用户态拷贝到内核态，这个开销在 fd 很多时会很大
+（1）每次调用 select，都需要把 fd_set 集合从用户态拷贝到内核态，这个开销在 fd_set 很多时会很大；
 
-（2）同时每次调用 select 都需要在内核遍历传递进来的所有fd，这个开销在 fd 很多时也很大
+（2）同时每次调用 select 都需要在内核遍历传递进来的所有 fd_set，这个开销在 fd_set 很多时也很大；
 
-（3）select 支持的文件描述符数量太小了，默认是1024
+（3）fd_set 的容量最大是 1024。
 
 2. poll
 
+poll 跟 select 的最大区别是传入的文件描述符集合只有一个。
+
+```c
+int poll(struct pollfd fds[], nfds_t nfds, int timeout);
+```
+
 3. epoll
 
-epoll 包含了三个函数。
+epoll 提供了三个函数，epoll_create, epoll_ctl 和 epoll_wait，epoll_create 是创建一个 epoll 句柄；epoll_ctl 是注册要监听的事件类型；epoll_wait 则是等待事件的产生。
+
+相比 select、poll，epoll 的优势在于：
+
+	1. epoll 没有文件描述符的数量限制；
+	2. epoll 不是通过轮询方式来查看某个文件描述符是否就绪，而是通过回调；
+	3. 不需要在每次调用的时候都将参数从用户空间拷贝到内核空间。
+
+当监听的 socket 不是很多，且大多数都是活跃的情况下，epoll 性能就不一定能够优于 select。
+
+*TODO: epoll 的详细机制*。
 
 - reactor 线程模型是什么?
 

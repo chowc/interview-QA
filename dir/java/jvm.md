@@ -94,7 +94,7 @@ JVM 预定义的类加载器有以下几种：
 
 - 如何自己实现一个 classloader 打破双亲委派
 
-1. 继承 `java.lang.ClassLoader` 並覆盖 `loadClass` 方法，重写类加载的顺序逻辑，例如：Tomcat 的 WebappClassLoader，不过 ClassLoader 的 `defineClass` 方法中有对类的路径进行校验，例如禁止一个用户类以 `java.` 做开头。
+可以继承 `java.lang.ClassLoader` 並覆盖 `loadClass` 方法，重写类加载的顺序逻辑，例如：Tomcat 的 WebappClassLoader，不过 ClassLoader 的 `defineClass` 方法中有对类的路径进行校验，例如禁止一个用户类以 `java.` 做开头。
 
 
 #### GC
