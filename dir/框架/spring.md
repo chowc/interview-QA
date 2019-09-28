@@ -2,7 +2,11 @@
 
 1. Spring MVC 的请求处理流程
 
-![image](spring_mvc_request.png)
+![image](../img/spring_mvc_request.png)
+
+其中，
+1. DispatchServlet 是负责前端控制（流程控制）的 Servlet，而其他 Controller（或其他 Handler）则是负责业务处理的；
+2. **HandlerMapping 返回的并不是 Handler 对象，而是 HandlerExecutionChain 对象，它包含了 Handler 的引用以及 Handler 关联的 HandlerInterceptor，HandlerInterceptor 的 `preHandle` 和 `postHandle` 分别会在 `HandlerAdapter.handler` 方法执行的前后执行**。
 
 2. Spring IOC 的实现
 
@@ -25,6 +29,27 @@ IOC 有三种实现方式（《Spring 揭秘》2.2）：构造方法注入、set
 代理的实现可以分为编译时的字节码增强或者是运行时代理，前者例如 AspectJ，后者则包括 Java 中的动态代理以及 cglib。
 
 [Spring AOP 的实现主要是使用了 Java 动态代理以及 cglib](https://docs.spring.io/spring/docs/2.5.x/reference/aop.html)，因为 Java 动态代理需要目标类实现了某个接口，因此对于实现了接口的代理类采用的是 Java 动态代理，而没有实现接口的类则通过 cglib 生成代理类的子类，因此对于 final 修饰的类无法通过 cglib 生成代理类。
+
+具体获取哪个代理策略是通过调用 `org.springframework.aop.framework.DefaultAopProxyFactory implements AopProxyFactory` 的 `createAopProxy(AdvisedSupport config)` 完成的，代码如下：
+
+```java
+public AopProxy createAopProxy(AdvisedSupport config) throws AopConfigException {
+	if (config.isOptimize() || config.isProxyTargetClass() || hasNoUserSuppliedProxyInterfaces(config)) {
+		Class<?> targetClass = config.getTargetClass();
+		if (targetClass == null) {
+			throw new AopConfigException("TargetSource cannot determine target class: " +
+					"Either an interface or a target is required for proxy creation.");
+		}
+		if (targetClass.isInterface() || Proxy.isProxyClass(targetClass)) {
+			return new JdkDynamicAopProxy(config);
+		}
+		return new ObjenesisCglibAopProxy(config);
+	}
+	else {
+		return new JdkDynamicAopProxy(config);
+	}
+}
+``` 
 
 - Java 动态代理的实现
 
