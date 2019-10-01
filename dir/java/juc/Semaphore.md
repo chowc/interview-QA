@@ -1,4 +1,4 @@
-### Semaphore
+### Semaphore（基于 1.8）
 
 用于限制能够访问资源的线程数，用 permits 来表示允许的线程数。调用 `acquire` 来获取许可，会使 permits-1，如果 permits<=0 则阻塞当前线程；调用 `release` 来释放当前持有的许可，会使 permits+1。
 

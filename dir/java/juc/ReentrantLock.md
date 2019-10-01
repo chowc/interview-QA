@@ -1,4 +1,4 @@
-### ReentrantLock
+### ReentrantLock（基于 1.8）
 
 实现了 Lock 接口，提供了阻塞获取锁 lock()，非阻塞获取锁 tryLock() 等方法。ReentrantLock 实际上是通过委托 AQS 的实现类 FairSync 和 NonFairSync 来实现的。
 

@@ -1,4 +1,4 @@
-### CyclicBarrier
+### CyclicBarrier（基于 1.8）
 
 用在多个线程互相等待的场景中。
 

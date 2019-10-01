@@ -1,4 +1,4 @@
-### ReentrantReadWriteLock
+### ReentrantReadWriteLock（基于 1.8）
 
 实现了 ReadWriteLock 接口。
 
