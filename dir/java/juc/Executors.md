@@ -13,14 +13,49 @@ public ThreadPoolExecutor(int corePoolSize,
                               ThreadFactory threadFactory) 
 ```
 
+1. corePoolSize：指定核心线程的数量，默认不被空闲回收；
+2. maximumPoolSize：指定最大线程数，当与 corePoolSize 相等时即为 fixedThreadPool；
+3. keepAliveTime：线程空闲保持时间，非 core 线程在空闲超过这个时间后会被回收；
+4. workQueue：任务队列，可以是无限队列，也可以是有限队列，初始时队列内可以有任务；
+5. threadFactory：用于创建线程池中线程的工厂类。
+
+- 线程池类型
+
+1. `Executors.newSingleThreadExecutor()`：单线程的线程池，所有任务会依次执行；
+2. `Executors.newFixedThreadPool(int nThreads)`：指定线程数量的线程池，所有任务根据调度被获取执行；
+3. `Executors.newCachedThreadPool()`：缓存线程池，在需要的时候会新创建线程，如果一个线程空闲超过 60s，则会被销毁，从而回收资源；
+4. `Executors.newWorkStealingPool()`：1.8 新增，工作窃取线程池。
+5. `Executors.newScheduledThreadPool(int corePoolSize)`：延时线程池，用于执行定时或延迟执行的任务；
+6. `Executors.newSingleThreadScheduledExecutor()`：延时线程池，只有一个线程，所有任务顺序执行，如果任务执行报错导致线程终止，会自动新建一个线程。
+
+- 线程池生命周期
+
+ThreadPoolExecutor 内部使用了一个 AtomicInteger 来维护线程池状态以及工作线程数（workerCount），将 32 位的 int 类型的**低 29 位**用于线程计数，**高 3 位**用于表示线程池状态。线程池可以有以下状态：
+
+线程池状态 | 代表的数字 |
+---|---|
+RUNNING|-1|
+SHUTDOWN|0|
+STOP|1|
+TIDYING|2|
+TERMINATED|3|
+
+其中，线程池状态的值只能是递增的，但不需要经过每一个状态。状态转移过程如下：
+
+![image](../../img/executors_lifecycle.png)
+
 - 当向线程池提交一个任务时会发生什么？
 
 1. 当线程数 < corePoolSize 的时候，会创建一个新的线程来执行该任务；
 2. 当线程数 >= corePoolSize 的时候，如果：
     1. 任务队列未满（或者是无限队列），将任务入队列，等待被执行；
-    2. 任务队列已满，如果：
+    2. 任务队列已满（或者是 SynchronousQueue），如果：
         1.  线程数 < maximumPoolSize：创建新的线程来执行该任务；
         2.  否则，根据 RejectPolicy 来处理该任务。
+
+- 如何提前创建 core thread？
+
+可以通过 `prestartCoreThread()` 来提前创建一个 core thread；或者通过 `prestartAllCoreThreads()` 来提前创建所有 core thread。这在任务队列初始不为空的时候会很有用。
 
 - 任务拒绝
 
