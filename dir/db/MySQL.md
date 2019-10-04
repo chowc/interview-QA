@@ -54,7 +54,7 @@
 - （联合）索引的设计原则
 
 1. 对经常在 WHERE、GROUP BY、ORDER BY、DISTINCT、UNION 等操作中使用到的列建立索引；
-2. 尽量选择区分度高的列作为索引並按区分度大小对索引列进行排序：区分度的公式是 `count(distinct col)/count(*)`，表示字段不重复的比例，比例越大我们扫描的记录数越少，唯一键的区分度是 1。
+2. 尽量选择区分度高的列作为索引並按区分度大小对索引列进行排序：区分度的公式是 `count(distinct col)/count(col)`，表示字段不重复的比例，比例越大我们扫描的记录数越少，唯一键的区分度是 1。
 
 3. 限制索引的数目
 
@@ -87,7 +87,36 @@
 - redo log 是什么？
 
 ### SQL
+
+- 一条 SQL 的执行过程
+
+MySQL 处理一条 SQL 的过程如下：
+
+1. 客户端发送一条查询给服务器；
+2. 服务器先检查查询缓存，如果命中了缓存，则立刻返回存储在缓存中的结果。否则进入下一阶段；
+3. 服务器端进行 SQL 解析、预处理，再由优化器生成对应的执行计划；
+4. MySQL 根据优化器生成的执行计划，再调用存储引擎的 API 来执行查询；
+5. 将结果返回给客户端。
+
+![image](../img/sql_execution_path.png)
+
 - SQL 关键字的执行顺序
+
+按照 SQL 标准的执行顺序如下，但实际执行的时候优化器可以进行调整：
+
+```SQL
+（8）SELECT（9）DISTINCT <select_list>
+（1）FROM <left_table>
+（3）<join_type> JOIN <right_table>
+（2）ON <join_condition>
+（4）WHERE <where_condition>
+（5）GROUP BY <grout_by_list>
+（6）WITH {CUTE|ROLLUP}
+（7）HAVING <having_condition>
+（10）ORDER BY <order_by_list>
+（11）LIMIT <limit_number>
+```
+
 - Explain 包含哪些列
 - 最左匹配前缀是什么？
 
