@@ -1,3 +1,9 @@
+### 参考资料
+
+- [《Spring 揭秘》](https://book.douban.com/subject/3897837/)
+
+---
+
 ### Spring
 
 1. Spring MVC 的请求处理流程
@@ -116,9 +122,12 @@ Connection.getMetaData().supportsSavepoints();
 - Spring 使用了哪些设计模式？
 
 1. 策略模式：在选择 AopProxy 的实现类时，通过 AdvisedSupport 作为选择的依据；
-2. 模板方法模式：TransactionManager 的实现类，提供了 `commit/rollback` 等方法供客户端使用，在这些方法中封装了事务操作的正确顺序，子类只需要实现事务操作中的某些关注点即可；
+2. 模板方法模式：TransactionManager 的实现类，提供了 `commit/rollback` 等方法供客户端使用，在这些方法中封装了事务操作的正确顺序，子类只需要实现事务操作中的某些关注点即可。或者是 JdbcTemplate；
 3. 代理模式：AOP 即是通过为目标对象生成代理类实现的；
-
+4. 单例模式：Spring 管理的 bean 默认都是单例的；
+5. 观察者模式：Spring 中 Observer 模式常用的地方是 listener 的实现。如 ApplicationListener；
+6. 工厂方法：BeanFactory；
+7. 适配器模式：HandlerAdapter。
 ---
 #### Spring Boot
 
