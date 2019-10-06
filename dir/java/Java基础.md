@@ -1,4 +1,6 @@
-Java 基础
+### Java 基础
+
+#### 类和对象
 
 - 接口和抽象类的区别
 
@@ -9,7 +11,36 @@ Java 基础
 5. 一个类只能继承一个抽象类，而一个类却可以实现多个接口；
 6. 抽象类是对一种事物的抽象，即对类抽象，而接口是对行为的抽象。
 
-- 为什么 Java 是单继承的？
+#### Object
+
+- Object 类中的方法有哪些？
+
+1. `Object()`：构造方法:
+
+2. 线程相关：`wait()`、`wait(long timeout)`、`wait(long timeout, int nanos)`、`notify()`、`notifyAll()`，这些方法都只能被持有该对象锁的线程调用，**都是 final 方法，不允许被覆盖**；
+
+3. `equals(Object obj)`：用于比较给定的对象是否与 this 相等；
+
+4. `hashCode()`：返回一个整型数，用于表示该对象的哈希码，该方法主要用于哈希集合中。该方法遵循以下规范：
+
+    1. 如果两个对象相等（equals() 方法返回 true），那么这两个对象调用 hashCode() 返回的哈希码也必须相等；
+    2. 反之，两个对象调用 hasCode() 返回的哈希码相等，这两个对象不一定相等。
+
+5. `toString()`：获取该对象的字符串表示形式，默认由该对象的类名以及哈希码的 16 进制表示。
+
+```java
+public String toString() {
+    return getClass().getName() + "@" + Integer.toHexString(hashCode());
+}
+```
+
+6. `getClass()`：返回该对象的类对象，**final 方法，不允许被覆盖**；
+
+7. `clone()`：native 方法，用于返回一个该对象的拷贝。**覆盖此方法的同时还需要实现 Cloneable 接口**，否则在调用时会抛出 CloneNotSupportedException。
+
+8. `finalize()`：与 GC 有关。当一个对象被 GC 线程判定为可回收时，会将该对象放到一个队列中，然后依次去执行队列里对象的 finalize 方法。
+
+9. `registerNatives()`：静态方法，用于注册本地方法。
 
 #### Integer
 
