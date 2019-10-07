@@ -87,6 +87,7 @@
 
 1. 结构优化
 2. 查询优化
+
 - MySQL 事务是如何实现的，提交回滚的细节
 
 ### 锁
@@ -99,6 +100,32 @@
 ### 日志
 - binlog 是什么？
 - redo log 是什么？
+- 主从复制的原理
+
+MySQL 主从复制的基础是主服务器对数据库修改记录 binlog，从服务器通过重放主服务器的 binlog 使得主服务器与从服务器的数据状态保持一致。
+
+主从复制原理如下图所示：
+
+![image](../img/mysql_master_slave.jpeg)
+
+主服务器上面的任何修改都会保存在 binlog 里面，从服务器上面启动一个 I/O thread（实际上就是一个主服务器的客户端进程），连接到主服务器上面请求读取 binlog，然后把读取到的 binlog 写到本地的一个 Realy log 里面。从服务器上面开启一个 SQL thread 定时检查 Realy log，如果发现有更改立即把更改的内容在本机上面执行一遍。（**在主库上并发运行的查询在从库上只能串行化执行，因为只有一个 SQL thread 来重放 Realy log 中的事件。新的 MySQL 版本将 SQL thread 改为多个线程。**）
+
+- binlog 的格式
+
+1. statement：记录更新的 SQL 语句
+
+缺点是：可能导致数据不一致
+
+> 由于 statement 格式下，记录到 binlog 里的是语句原文（例如 `delete from table where a='A' and b='B' limit 1;`），因此可能出现这样一种情况：在主库执行这条 SQL 语句的时候，用的是索引 a；而在备库执行这条语句的时候，可能使用的是索引 b，从而导致主库跟从库删除的数据不一致。因此，MySQL 认为这样写是有风险的。
+
+2. row：记录更新前后的数据。
+
+row 格式好处在于恢复数据，因为日志里记录了更新前后的数据。缺点是一条 Update 语句可能更新了很多行，从而导致 binlog 的膨胀。
+
+3. mixed：statement 和 row 的混合，为了减少 row 造成的空间浪费以及 statement 可能造成的数据不一致。
+
+> MySQL 自己会判断这条 SQL 语句是否可能引起主备不一致，如果有可能，就用 row 格式，否则就用 statement 格式。
+
 
 ### SQL
 
@@ -154,7 +181,6 @@ a | b | c |
 4. MySQL 有时候也会基于一些固定的规则来生成执行计划；
 5. MySQL 不会考虑不受其控制的成本，例如存储过程、用户自定义的函数等。
 
-
 - 慢查询如何优化？
 
 1. 开启慢查询日志；
@@ -187,6 +213,24 @@ log_queries_not_using_indexes = 1 记录没有使用索引的 SQL 语句。
 6. 查询优化、索引优化、库表结构优化
 
 了解业务使用场景，在不变更需求的前提下尝试优化 SQL；或者是新增索引；
+
+- 如何查看 MySQL 性能？
+
+1. `show processlist;`：查看连接状态；
+2. `SHOW [GLOBAL | SESSION] STATUS;`：查看全局的或当前连接的信息。
+
+- 如何查看 SQL 性能
+
+1. 查看 profile 功能是否打开：`show variables like '%profile%';`；
+2. 打开 profile 功能：`set profiling=1;`；
+3. 查看之前执行的 SQL 性能：`show profiles;`；
+4. 选择输出指定 SQL 的 CPU、I/O 的性能信息：`show profile CPU,BLOCK IO io FOR query 2;`；
+5. 选择输出指定 SQL 的全部性能信息：`show profile ALL for query 1;`。
+
+profile 输出的信息如下：
+
+
+在 MySQL 5.7 之后，profile 将逐渐被废弃，MySQL 推荐使用 performance schema。
 
 
 - buffer pool size

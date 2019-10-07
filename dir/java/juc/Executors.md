@@ -28,6 +28,11 @@ public ThreadPoolExecutor(int corePoolSize,
 5. `Executors.newScheduledThreadPool(int corePoolSize)`：延时线程池，用于执行定时或延迟执行的任务；
 6. `Executors.newSingleThreadScheduledExecutor()`：延时线程池，只有一个线程，所有任务顺序执行，如果任务执行报错导致线程终止，会自动新建一个线程。
 
+- 为什么不推荐使用 Executors 来创建线程池？
+
+1. CachedThreadPool 和 ScheduledThreadPool 最大线程数为 Integer.MAX_VALUE，如果线程无限地创建，会造成 OOM 异常；
+2. FixedThreadPool 和 SingleThreadPool 使用的任务队列是 LinkedBlockingQueue，是无界的，默认大小是 Integer.MAX_VALUE，如果队列被无限地堆积任务，会造成OOM异常。
+
 - 线程池生命周期
 
 ThreadPoolExecutor 内部使用了一个 AtomicInteger 来维护线程池状态以及工作线程数（workerCount），将 32 位的 int 类型的**低 29 位**用于线程计数，**高 3 位**用于表示线程池状态。线程池可以有以下状态：
