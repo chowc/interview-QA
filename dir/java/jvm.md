@@ -78,11 +78,17 @@
 
 在 hotspot 上触发的是 full gc，可以通过参数 `-XX:+DisableExplicitGC` 来禁用它。
 
-- Rerfence 类型及其状态转换
+- Reference 类型及其状态转换
 
-1. `java.lang.ref.Reference`
+![image](../img/reference_class_hierarchy.png)
 
-及其子类：
+其中，Finalizer 对应强引用，SoftReference 对应软引用，WeakReference 对应弱引用，PhantomReference 对应虚引用。
+
+在实例化一个 `java.lang.ref.Reference` 时可以指定一个 ReferenceQueue，该 ReferenceQueue 会影响后续 Reference 对象的回收过程。
+
+Reference 的状态转换：
+
+![image](../img/reference_state.png)
 
 - 几种垃圾回收算法
 
