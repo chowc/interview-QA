@@ -163,10 +163,28 @@ show engine innodb status;
 
 - 索引失效的原因
 
-1. 
+1. 不满足最左前缀匹配；
+2. 在索引列做运算、函数或是类型转换（例如：'123' 写成 123）；
+3. 使用 <> 、not in 、not exist、!=；
+4. B-tree 索引 is null 的条件不会使用索引。
 
 - 大表设计的注意点
 - 大表删除一半数据的方案
+
+1. 要避免长事务：批量删除；
+2. 要避免过多加锁；
+3. 用主键做为删除条件要比使用二级索引做为删除条件快（可以先根据二级索引找到符合条件的最大或最小主键，例如二级索引是创建时间）；
+4. 删除 SQL 添加 limit 条件。
+
+[官方的一个方案](https://dev.mysql.com/doc/refman/8.0/en/delete.html)
+```sql
+# 将要保留的数据插入另一张表中
+INSERT INTO t_copy SELECT * FROM t WHERE ... ;
+# 使用 rename 替换旧表
+RENAME TABLE t TO t_old, t_copy TO t;
+# 删除旧表
+DROP TABLE t_old;
+```
 
 - SQL 优化的具体步骤
 
