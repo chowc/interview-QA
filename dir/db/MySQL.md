@@ -293,6 +293,31 @@ a | b | c |
 3|6|0|
 
 - [explain](explain.md)
+- 大数据量的分页如何优化？
+
+例如，针对 SQL：
+```sql
+mysql> select film_id, description from sakila.film order by title limit 50000, 5;
+```
+
+可以采用以下方法：
+
+1. 将 Limit 查询转换为已知位置（例如主键）的查询：但是需要已知位置是连续的区间
+
+```sql
+mysql> select film_id, description from sakila.film where position between 50 AND 54 order by position;
+```
+
+2. 延迟关联
+
+```sql
+mysql> select film.film_id, film.description from sakila.film inner join (select film_id from sakila.film order by title limit 50000, 5) as lim using (film_id);
+```
+
+其实本质上都是先通过二级索引获取到主键，然后在主表上通过 between 或是 IN 或是 join 的方式来获取所需数据列。
+
+*也可以通过业务限制，来防止过大的分页数，例如禁止翻到多少页之后。*
+
 - 什么时候会使用到临时表？
 1. 使用 union（union all 则不需要使用临时表）；
 2. group by 使用的字段没有索引（group by 默认会对使用的字段进行排序）；
@@ -359,3 +384,11 @@ profile 输出的信息如下：
 
 
 - buffer pool size
+
+- 查看 buffer pool 内容
+
+```sql
+# 查看指定表的使用了指定索引的索引页数量
+mysql> select index_name,count(*) from information_schema.INNODB_BUFFER_PAGE where INDEX_NAME in('primary','gender') and TABLE_NAME like '%member%' group by index_name;
+Empty set (0.04 sec)
+```

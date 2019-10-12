@@ -6,7 +6,44 @@
 
 ### Spring
 
-1. Spring MVC 的请求处理流程
+- [Tomcat 如何启动一个 Spring 项目？](https://zouzls.github.io/2017/03/29/SpringStart/)
+
+1. 在启动 Web 项目时，容器比如 Tomcat 会读 web.xml 配置文件中所有的属性，包括 contextConfigLocation 和 ContextLoaderListener 这些等等；
+2. 接着 Tomcat 会创建一个 ServletContext（这里的 ServletContext 可以理解为每个 Web 应用对应的 Context 容器),应用范围内即整个 web 项目都能使用这个上下文；
+3.  Tomcat 将刚刚读取到 contextConfigLocation 和 ContextLoaderListener 这些 web.xml 中的参数键值对交给 ServletContext；
+4. 创建 web.xml 中配置的监听器类 Listener。在监听器类中必须要实现 ServletContextListener 接口；
+5. 因为 ContextLoaderListener 实现了用来监听 ServletContext 事件的 ServletContextListener 这个接口，如果 ServletContext 状态发生变化，将会触发产生对应的 ServletContextEvent，然后调用监听器的不同的方法。
+
+```xml
+<!-- web.xml Spring配置文件开始  -->
+<context-param>
+    <param-name>contextConfigLocation</param-name>
+    <param-value>
+        classpath:spring-config.xml
+    </param-value>
+</context-param>
+<listener>
+    <listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>
+</listener>
+<!-- Spring配置文件结束 -->
+```
+
+```java
+public class ContextLoaderListener extends ContextLoader implements ServletContextListener {
+    ...
+    //实现了ServletContextListener的初始化接口
+    public void contextInitialized(ServletContextEvent event) {
+        this.initWebApplicationContext(event.getServletContext());
+    }
+    //同上
+    public void contextDestroyed(ServletContextEvent event) {
+        this.closeWebApplicationContext(event.getServletContext());
+        ContextCleanupListener.cleanupAttributes(event.getServletContext());
+    }
+}
+```
+
+- Spring MVC 的请求处理流程
 
 ![image](../img/spring_mvc_request.png)
 
@@ -14,23 +51,23 @@
 1. DispatchServlet 是负责前端控制（流程控制）的 Servlet，而其他 Controller（或其他 Handler）则是负责业务处理的；
 2. **HandlerMapping 返回的并不是 Handler 对象，而是 HandlerExecutionChain 对象，它包含了 Handler 的引用以及 Handler 关联的 HandlerInterceptor，HandlerInterceptor 的 `preHandle` 和 `postHandle` 分别会在 `HandlerAdapter.handler` 方法执行的前后执行**。
 
-2. Spring IOC 的实现
+- Spring IOC 的实现
 
 IOC 有三种实现方式（《Spring 揭秘》2.2）：构造方法注入、setter 方法注入、以及接口注入。
 
-- 构造方法注入
+1. 构造方法注入
 
 被注入对象可以通过在其构造方法中声明依赖对象的参数列表，让外部（通常是 IOC 容器）知道它需要哪些依赖对象。
 
-- setter 方法注入
+2. setter 方法注入
 
 当前对象只要为其依赖对象所对应的属性添加 setter 方法，就可以通过 setter 方法将相应的依赖对象设置到被注入对象中。
 
-- 接口注入
+3. 接口注入
 
 被注入对象如果想要 IOC 容器为其注入依赖对象，就需要实现某个接口。这个接口提供一个方法，用来为其注入依赖对象。
 
-3. Spring AOP 的实现
+- Spring AOP 的实现
 
 代理的实现可以分为编译时的字节码增强或者是运行时代理，前者例如 AspectJ，后者则包括 Java 中的动态代理以及 cglib。
 
