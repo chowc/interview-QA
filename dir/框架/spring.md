@@ -183,9 +183,11 @@ Connection.getMetaData().supportsSavepoints();
 
 - Eureka 互相注册可以吗
 
-服务启动后向 Eureka 注册，Eureka Server 之间相互注册，Eureka Server会将注册信息向其他Eureka Server进行同步，当服务消费者要调用服务提供者，则向服务注册中心获取服务提供者地址，然后会将服务提供者地址缓存在本地，下次再调用时，则直接从本地缓存中取，完成一次调用。
+Eureka Server 默认模式为多实例，可以通过 `eureka.client.registerWithEureka=false` 来关闭此行为，以避免日志警告。通过 ``
 
-- Eureka 如何多个通讯交换信息，一个服务可以注册到多个注册中心吗
+服务启动后向 Eureka 注册，Eureka Server 之间相互注册，Eureka Server 会将注册信息向其他 Eureka Server 进行同步，当服务消费者要调用服务提供者，则向服务注册中心获取服务提供者地址，然后会将服务提供者地址缓存在本地，下次再调用时，则直接从本地缓存中取，完成一次调用。
+
+- Eureka 如何多个通讯交换信息，一个服务可以注册到多个注册中心吗？
 
 可以注册到多个，但没必要，因为注册中心之间会互相通讯，同步注册信息。
 
@@ -193,11 +195,31 @@ Connection.getMetaData().supportsSavepoints();
 
 - Eureka 跟客户端之后通过什么协议进行通讯？
 - 负载均衡是在客户端还是服务端实现的？
+
+客户端 Ribbon 在进行 Feign 调用的时候。
+
 - 有哪些负载均衡算法？
-- 熔断降级如何做的
+
+1. RandomRule：随机选择；
+2. RoundRobinRule：轮询；
+3. WeightedResponseTimeRule：响应时间作为选取权重的负载均衡策略，其含义就是，响应时间越短的服务被选中的可能性大；
+4. 
+
+Ribbon 的负载均衡默认使用轮询算法。
+
+- 熔断、降级如何做的
+
+Hystrix 熔断的目的是为了防止服务的雪崩。
+
+Hystrix 会搞很多个小小的线程池，比如订单服务请求库存服务是一个线程池，请求仓储服务是一个线程池，请求积分服务是一个线程池。每个线程池里的线程就仅仅用于请求那个服务。打个比方：现在很不幸，积分服务挂了，会咋样？当然会导致订单服务里那个用来调用积分服务的线程都卡死不能工作了啊！但由于订单服务调用库存服务、仓储服务的这两个线程池都是正常工作的，所以这两个服务不会受到任何影响。
 
 - Eureka 在什么情况下会触发熔断保护？
-- Eureka断开一段时间注册信息会怎样
+- Eureka client 断开一段时间注册信息会怎样
 
-Eureka 客户端的状态变成：STARTING->UP->DOWN。客户端默认 30 秒发送一次心跳，如果 Eureka 超过 90 秒没有接收到客户端的心跳，则认为客户端已经 DOWN 了。
+client 的状态转换为：STARTING->UP->DOWN。
 
+client 默认 30 秒发送一次心跳，如果 Eureka 超过 90 秒没有接收到 client 的心跳，则将 client 状态修改为 DOWN。
+
+- Ribbon 和 Zuul 的区别
+
+Zuul 是负责外部调用内部服务的时候进行统一的鉴权、流量过滤、服务路由等；而 Ribbon 是负责内部服务之后相互调用时基于负载均衡算法选择一个可用服务提供者。

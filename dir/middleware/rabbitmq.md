@@ -3,6 +3,18 @@
 ---
 ### RabbitMQ
 
+#### 基本概念
+
+基本概念: virtual host，exchange，queue，binding，binding key，routing key、connection，channel
+
+![image](rabbitmq_msgsend.png)
+
+- exchange 交换机类型
+
+1. fanout
+2. direct
+3. topic
+4. headers
 #### 发送方消息确认
 
 默认情况下发生消息的操作时不会返回任何消息给生产者的，也就是默认情况下生产者是不知道消息有没有正确地到达服务器。如果在消息到达服务器之前已经丢失，持久化操作也解决不了这个问题。
@@ -31,3 +43,22 @@ RabbitMQ 提供了两种解决方式：
 #### 消费确认
 
 消费者客户端可以通过推或者拉模式的方式来获取并消费消息，当消费者处理完业务逻辑需要手动确认消息已被接收，这样 RabbitMQ 才能把当前消息从队列中清除。如果消费者由于某些原因无法处理当前接收到的消息，可以通过 `channel.basciNack` 或者 `channel.basicReject` 来拒绝掉。
+
+#### 死信
+
+- 消息变成死信的原因：
+
+    1. 消息被拒绝（`Basic.Reject/Basic.Nack`），并且设置 requeue 参数为 false；
+    2. 消息过期；
+    3. 队列达到最大长度。
+    
+- 采用死信队列做延时队列
+
+死信交换器（Dead-Letter-Exchange，DLX）也是一个正常的交换器，和一般的交换器没有区别，它能在任何的队列上被指定，实际上就是设置某个队列的属性。当这个队列中存在死信时，RabbitMQ 就会自动将这个消息重新发布到设置的 DLX 上去，进而被路由到另一个队列，即死信队列。
+
+假设一个应用中需要将每条消息都设置为 10 秒的延迟，生产者通过 `exchange.normal` 这个交换器将发生的消息存储在 `queue.normal` 这个队列中。消费者订阅的并非是 `queue.normal` 这个队列，而是 `queue.dlx` 这个队列。当消息从 `queue.normal` 这个队列中过期之后被存入 `queue.dlx` 队列中，消费者就恰巧消费到了延迟 10 秒的这条消息。
+
+---
+- 参考资料
+
+1. 《RabbitMQ 实战指南》
