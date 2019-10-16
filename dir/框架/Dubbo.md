@@ -2,19 +2,23 @@
 
 #### [Dubbo 如何做负载均衡？](http://dubbo.apache.org/zh-cn/docs/source_code_guide/loadbalance.html)
 
-Dubbo 提供了4种负载均衡实现，分别是基于权重随机算法的 RandomLoadBalance、基于最少活跃调用数算法的 LeastActiveLoadBalance、基于 hash 一致性的 ConsistentHashLoadBalance，以及基于加权轮询算法的 RoundRobinLoadBalance。
+Dubbo 提供了4种负载均衡实现，分别是基于权重随机算法的 RandomLoadBalance、基于最少活跃调用数算法的 LeastActiveLoadBalance、基于一致性哈希的 ConsistentHashLoadBalance，以及基于加权轮询算法的 RoundRobinLoadBalance。
 
 - RandomLoadBalance
 - LeastActiveLoadBalance
 
-在具体实现中，每个服务提供者对应一个活跃数 active。初始情况下，所有服务提供者活跃数均为0。每收到一个请求，活跃数加1，完成请求后则将活跃数减1。在服务运行一段时间后，性能好的服务提供者处理请求的速度更快，因此活跃数下降的也越快，此时这样的服务提供者能够优先获取到新的服务请求、这就是最小活跃数负载均衡算法的基本思想。
+在具体实现中，每个服务提供者对应一个活跃数 active。初始情况下，所有服务提供者活跃数均为 0。每收到一个请求，活跃数加 1，完成请求后则将活跃数减 1。在服务运行一段时间后，性能好的服务提供者处理请求的速度更快，因此活跃数下降的也越快，此时这样的服务提供者能够优先获取到新的服务请求、这就是最小活跃数负载均衡算法的基本思想。
 
 - ConsistentHashLoadBalance
 - RoundRobinLoadBalance
 
-平滑加权轮询负载均衡。
+**平滑加权轮询负载均衡**。
+
+因为加权负载均衡算法在某些情况下选出的服务器序列不够均匀。比如，服务器 [A, B, C] 对应权重 [5, 1, 1]。进行7次负载均衡后，选择出来的序列为 [A, A, A, A, A, B, C]。前5个请求全部都落在了服务器 A上，这将会使服务器 A 短时间内接收大量的请求，压力陡增。而 B 和 C 此时无请求，处于空闲状态。而我们期望的结果是这样的 [A, A, B, A, C, A, A]，不同服务器可以穿插获取请求。
 
 #### Dubbo 如何做限流降级？
+
+Dubbo中的限流通过 `org.apache.dubbo.rpc.filter.TpsLimitFilter`来实现，会在 invoker 执行实际业务逻辑前进行拦截，判断单位时间请求数是否超过上限，如果超过，抛出异常阻断调用。
 
 #### [Dubbo 如何优雅的下线服务？](https://dubbo.apache.org/zh-cn/blog/dubbo-gracefully-shutdown.html)
 
