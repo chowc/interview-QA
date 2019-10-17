@@ -1,4 +1,9 @@
 ### 线程池 Executors
+- 为什么要使用线程池，线程池有什么用？
+
+1. 降低资源消耗：通过重用已经创建的线程来降低线程创建和销毁的消耗；
+2. 提高响应速度：任务到达时不需要等待线程创建就可以立即执行；
+3. 提高线程的可管理性：线程池可以统一管理、分配、调优和监控。
 
 - 线程池参数
 
@@ -21,11 +26,21 @@ public ThreadPoolExecutor(int corePoolSize,
 
 - 线程池类型
 
-1. `Executors.newSingleThreadExecutor()`：单线程的线程池，所有任务会依次执行；
-2. `Executors.newFixedThreadPool(int nThreads)`：指定线程数量的线程池，所有任务根据调度被获取执行；
-3. `Executors.newCachedThreadPool()`：缓存线程池，在需要的时候会新创建线程，如果一个线程空闲超过 60s，则会被销毁，从而回收资源；
+1. `Executors.newSingleThreadExecutor()`：单线程的线程池，适用于串行执行任务的场景，每个任务必须按顺序执行，不需要并发执行；
+2. `Executors.newFixedThreadPool(int nThreads)`：指定线程数量的线程池，所有任务根据调度被获取执行，适用于处理 CPU 密集型的任务，确保 CPU 在长期被工作线程使用的情况下，尽可能的少的分配线程即可。一般线程数设置为 Ncpu+1（具体原因？还是经验值？）；
+3. `Executors.newCachedThreadPool()`：缓存线程池，在需要的时候会新创建线程，keepAliveTime=60，corePoolSize=0，阻塞队列是 SynchronousQueue，长时间保持空闲的 CachedThreadPool 不会占用任何资源，**用于并发执行大量短期的小任务**；
 4. `Executors.newWorkStealingPool()`：1.8 新增，工作窃取线程池。
 5. `Executors.newScheduledThreadPool(int corePoolSize)`：延时线程池，用于执行定时或延迟执行的任务；
+
+ScheduledThreadPoolExecutor 添加任务提供了另外两个方法：
+
+	1. scheduleAtFixedRate() ：按某种速率周期执行
+	2. scheduleWithFixedDelay()：在某个延迟后执行
+
+两种方法的内部实现都是创建了一个 `ScheduledFutureTask` 对象封装了任务的延迟执行时间及执行周期，并调用 `decorateTask()` 方法转成 `RunnableScheduledFuture` 对象，然后添加到延迟队列中。
+
+其内部的 DelayQueue 封装了一个优先级队列，这个队列会对队列中的 ScheduledFutureTask 进行排序，两个任务的执行 time 不同时，time 小的先执行；否则比较添加到队列中的 ScheduledFutureTask 的顺序号 sequenceNumber，先提交的先执行。
+
 6. `Executors.newSingleThreadScheduledExecutor()`：延时线程池，只有一个线程，所有任务顺序执行，如果任务执行报错导致线程终止，会自动新建一个线程。
 
 - 为什么不推荐使用 Executors 来创建线程池？
@@ -92,3 +107,10 @@ TERMINATED|3|
 
 1. 非 core 线程：等待任务时间超过 `keepAliveTime` 的线程会被回收； 
 2. core 线程默认不进行回收，但也可以通过方法 `allowCoreThreadTimeOut(boolean value)` 设置进行 core 线程的回收，等待时间一样使用 `keepAliveTime`。
+
+- 单机上一个线程池正在处理服务，如果忽然断电了怎么办（正在处理和阻塞队列里的请求怎么处理）？
+
+> 我感觉实现思路和 MySQL 的 redo，undo 功能很相似，我们可以对正在处理和阻塞队列的任务做事物管理或者对阻塞队列中的任务持久化处理，并且当断电或者系统崩溃，操作无法继续下去的时候，可以通过回溯日志的方式来撤销正在处理的已经执行成功的操作。然后重新执行整个阻塞队列。
+即：阻塞队列持久化，正在处理的任务通过事务控制。断电之后正在处理的回滚，日志恢复该次操作。服务器重启后阻塞队列中的数据再加载。
+>
+> http://anruence.com/2018/03/22/interview/

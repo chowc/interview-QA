@@ -1,2 +1,3 @@
-- Netty 的多种 Reactor 线程模型
-- Netty 的零拷贝是什么？
+- netty 的多种 Reactor 线程模型
+- netty 的零拷贝是什么？
+- netty 为什么需要 IO 线程池和业务线程池分开与如何实现
