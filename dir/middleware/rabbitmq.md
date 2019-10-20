@@ -5,7 +5,7 @@
 
 #### 基本概念
 
-基本概念: virtual host，exchange，queue，binding，binding key，routing key、connection，channel
+基本概念: virtual host，exchange，queue，binding，binding key，routing key
 
 ![image](rabbitmq_msgsend.png)
 
@@ -15,6 +15,21 @@
 2. direct
 3. topic
 4. headers
+
+- Connection、channel
+
+> 一个 Connection 代表到 MQ 服务器的一条 TCP 连接，一旦 TCP 连接建立起来，客户端紧接着可以创建一个 AMQP 信道 (Channel) ，每个信道都会被指派一个唯一的 ID。信道是建立在 Connection 之上的虚拟连接， RabbitMQ 处理的每条 AMQP 指令都是通过信道完成的。
+>
+> 我们完全可以直接使用 Connection 就能完成信道的工作，为什么还要引入信道呢?试想这样一个场景， 一个应用程序中有很多个线程需要从 RabbitMQ 中消费消息，或者生产消息，那么必然需要建立很多个 Connection，也就是许多个 TCP 连接。然而对于操作系统而言，建立和销毁 TCP 连接是非常昂贵的开销，如果遇到使用高峰，性能瓶颈也随之显现。 RabbitMQ 采用类似 NIO 的做法，选择 TCP 连接复用，不仅可以减少性能开销，同时也便于管理。
+>
+> *每个线程把持一个信道*（channel 不是线程安全的，即使某些方法是线程安全的，即多个线程共用一个 channel 的话需要进行额外加锁，所以一般推荐对一个 channel 建立一个线程，一个 channel 就代表了一个消息的消费者），所以信道复用了 Connection 的 TCP 连接。同时 RabbitMQ 可以确保每个线程的私密性，就像拥有独立的连接一样。当每个信道的流量不是很大时，复用单一的 Connection 可以在产生性能瓶颈的情况下有效地节省 TCP 连接资源。但是当信道本身的流量很大时，这时候多个信道复用一个 Connection 就会产生性能瓶颈，进而使整体的流量被限制了。此时就需要开辟多个 Connection，将这些信道均摊到这些 Connection 中。
+
+- `channel.basicConsume` 是客户端拉取还是 MQ 服务器的推送？
+
+消费的两种模式：推和拉
+
+> Basic.Consume 将信道 (Channel) 直为接收模式，直到取消队列的订阅为止。在接收模式期间， RabbitMQ 会不断地推送消息给消费者，当然推送消息的个数还是会受到 Basic.Qos 的限制.如果只想从队列获得单条消息而不是持续订阅，建议还是使用 Basic.Get 进行消费.但是不能将 Basic.Get 放在一个循环里来代替 Basic.Consume ，这样做会严重影响 RabbitMQ 的性能.如果要实现高吞吐量，消费者理应使用 Basic.Consume 方法。
+
 #### 发送方消息确认
 
 默认情况下发生消息的操作时不会返回任何消息给生产者的，也就是默认情况下生产者是不知道消息有没有正确地到达服务器。如果在消息到达服务器之前已经丢失，持久化操作也解决不了这个问题。

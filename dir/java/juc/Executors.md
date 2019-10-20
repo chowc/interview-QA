@@ -41,6 +41,8 @@ ScheduledThreadPoolExecutor 添加任务提供了另外两个方法：
 
 其内部的 DelayQueue 封装了一个优先级队列，这个队列会对队列中的 ScheduledFutureTask 进行排序，两个任务的执行 time 不同时，time 小的先执行；否则比较添加到队列中的 ScheduledFutureTask 的顺序号 sequenceNumber，先提交的先执行。
 
+*对于周期执行的任务，如果任务的执行时间超过了任务周期间隔，则需要等待上一个任务执行完了才会开始下一个周期任务*。
+
 6. `Executors.newSingleThreadScheduledExecutor()`：延时线程池，只有一个线程，所有任务顺序执行，如果任务执行报错导致线程终止，会自动新建一个线程。
 
 - 为什么不推荐使用 Executors 来创建线程池？
