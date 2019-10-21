@@ -1,4 +1,4 @@
-#### 内存分配
+### 内存分配
 
 - 所有对象都是在堆上创建的吗?
 
@@ -26,6 +26,11 @@ private static void getUser() {
     System.out.println("user name is " + name + ", age is " + age);
 }
 ```
+
+-XX:+DoEscapeAnalysis 开启逃逸分析，jdk1.8 默认开启；
+
+-XX:-DoEscapeAnalysis 关闭逃逸分析
+
 3. 栈上分配：指对象和数据不是创建在堆上，而是创建在栈上，随着方法的结束自动销毁。但实际上，JVM 例如常用的 HotSpot 虚拟机并没有实现栈上分配，实际是用标量替换代替实现的。
 
 - 基本数据类型在哪里分配？
@@ -110,9 +115,9 @@ JVM使用 -XX:PermSize 设置非堆内存初始值，默认是物理内存的 1/
 
 - metaspace 的动态拓展
 
-#### [类加载](类加载.md)
+### [类加载](类加载.md)
 
-#### GC
+### GC
 - 垃圾回收基本原理
 
 可达性分析：通过判断从 GC Root 到目标对象之间有没有一条引用链相连，来判断该对象可否被回收。其中可以做为 GC Roots 的对象有：
@@ -194,6 +199,25 @@ CMS（Concurrent Mark Sweep）
 
 针对老年代的并发的标记清除算法。
 
+- [如何选择垃圾收集器？](http://novoland.github.io/jvm/2014/07/27/gc.html)
+
+1. 单 CPU 或小内存，单机程序：
+
+-XX:+UseSerialGC
+
+2. 多 CPU，需要最大吞吐量，如后台计算型应用：
+
+-XX:+UseParallelGC 或 -XX:+UseParallelOldGC
+
+3. 多 CPU，追求最低停顿时间，需要快速响应如互联网应用：
+
+-XX:+UseConcMarkSweepGC -XX:+UseParNewGC
+
+4. 自动选择
+
+	1. 吞吐量优先：-XX:GCTimeRatio=n
+	2. 暂停时间优先：-XX:MaxGCPauseMills=n
+
 - CMS GC 回收分为哪几个阶段？分别做了什么事情？
 
 1. 初始标记
@@ -218,22 +242,9 @@ CMS（Concurrent Mark Sweep）
 4. 设置开启合并整理过程：`-XX:+UseCMSCompactAtFullCollection`，用于开启内存整理，默认是开启的，但会使得停顿时间变长，因为整理过程是不能并发的；
 5. `-XX:CMSFullGCsBeforeCompaction=N`，设置进行多少次不整理的回收后就会进行一次带整理的回收，默认为 0，即每次回收都会进行内存整理。
 
-- G1
-
-1. Region 的概念
-2. 按回收效益和停顿时间来确定回收的 Region
-3. 分代是如何实现的
-4. 大对象的分配
-
-- Concurrent Model Failure 和 ParNew promotion failed 什么情况下会发生？
-
-1. Concurrent Mode Failure 的出现场景
+- Concurrent Mode Failure 的出现场景
 
 CMS 的回收线程因为是与用户线程并发执行的，所以需要预留足够的内存空间给用户线程执行所需，CMS 会在老年代使用了预留空间大小的内存后被激活，可以通过参数 `-XX:CMSInitiatingOccupancyFraction` 来设置，在 JDK 1.5 中预留空间为 68%，也就是老年代空间使用了 68% 之后会触发 CMS 进行回收。在 1.6 中提高到 92%。要是 CMS 运行期间预留的内存无法满足程序需要，就会出现一次 "Concurrent Mode Failure" 失败，这时虚拟机将启动后备预案：临时启用 SerialOld 收集器来重新进行老年代的垃圾收集，这样停顿时间就很长了。
-
-2. ParNew promotion failed 的出现场景
-
-在进行 minor gc 时，因为 survivor 区域不足以放下所有存活的对象，因此需要将一部分对象放入老年代中，而如果这时候老年代的空间也不足的话，就会出现 “ParNew promotion failed”。
 
 - CMS 的优缺点？
 
@@ -242,9 +253,72 @@ CMS 的回收线程因为是与用户线程并发执行的，所以需要预留�
 缺点：
 
 1. 不能处理浮动垃圾，也就是在并发清除过程中用户线程产生的垃圾，因为这部分垃圾并没有被标记到，所以无法进行回收；
-2. 在并发阶段，它虽然不会导致用户线程停顿，但是会因为占用了一部分线程（或者说CPU资源）而导致应用程序变慢，总吞吐量会降低。CMS默认启动的回收线程数是（CPU数量+3）/4，也就是当CPU在4个以上时，并发回收时垃圾收集线程不少于25%的CPU资源，并且随着CPU数量的增加而下降；
+2. 在并发阶段，它虽然不会导致用户线程停顿，但是会因为占用了一部分线程（或者说CPU资源）而导致应用程序变慢，总吞吐量会降低。CMS默认启动的回收线程数是（CPU数量+3）/4，也就是当CPU在 4 个以上时，并发回收时垃圾收集线程不少于 25% 的CPU资源，并且随着 CPU 数量的增加而下降；
 3. CMS 使用的是标记清除算法，在垃圾收集完成后会产生大量空间碎片；
 4. 在堆空间比较大的情况下，标记垃圾的时间会变长，使得停顿时间变久。
+
+#### G1
+
+G1 相比 CMS，其停顿时间可预测。
+
+G1 的回收过程大致分为四个阶段：
+
+1. 初始标记：STW，只标记 GC Roots 直接可达的对象；
+2. 并发标记：与用户线程并发执行，从 GC Roots 对堆对象进行可达性分析，这阶段发生的引用变动记录到 Remember Set Logs 中；
+3. 最终标记：STW，可并行执行，根据 Remembet Set Logs 对 Remember Set 进行更新；
+4. 筛选回收：对各个 Region 的回收价值和成本进行排序，根据用户所期望的 GC 停顿时间来制定回收计划，这个阶段可以并发进行，也可以 STW 和并行执行，从而提高回收效率。
+
+> G1 has a cleanup phase at the end of a collection which is partly STW and partly concurrent. The STW part of the cleanup phase identifies empty regions and determines old regions that are candidates for the next collection. The cleanup phase is partly concurrent when it resets and returns the empty regions to the free list.
+
+- Region 的概念
+
+G1 将整个堆内存分为多个大小相等的独立区域 Region，Region 的大小可以在 1MB-32MB 之间，最多不超过 1024 个 Region，每次回收都在 Region 上进行。新生代和老年代不再是物理隔离的，而是一部分 Region 的集合（不需要连续）。每个 Region 对应有一个 Remember Set，用于记录其他 Region 指向本 Region 内对象的记录。
+
+G1 会将其他 Region 上存活的对象拷贝到另一个 Region 上，从而减少内存碎片。
+
+- 按回收效益和停顿时间来确定回收的 Region
+
+G1 跟踪各个 Region 里面的垃圾堆积的价值大小（回收所获得的的空间大小以及回收所需时间的经验值），在后台维护一个优先列表，每次根据允许的收集时间，优先回收价值最大的 Region。
+
+- G1 的使用场景
+
+1. 大堆内存：在单 Region 上的回收依然很快；
+2. 多核多 CPU：可以并发进行收集，降低停顿时间；
+3. 追求低停顿时间。
+- 分代是如何实现的
+- 大对象的分配
+
+> For G1 GC, any object that is more than half a region size is considered a humongous object. Such an object is allocated directly in the old generation into humongous regions. These humongous regions are a contiguous set of regions. StartsHumongous marks the start of the contiguous set and ContinuesHumongous marks the continuation of the set.
+>
+> Before allocating any humongous region, the marking threshold is checked, initiating a concurrent cycle, if necessary.
+>
+> Dead humongous objects are freed at the end of the marking cycle during the cleanup phase and also during a full garbage collection cycle.
+>
+> To reduce copying overhead, the humongous objects are not included in any evacuation pause. A full garbage collection cycle compacts humongous objects in place.
+>
+> Because each individual set of StartsHumongous and ContinuesHumongous regions contains just one humongous object, the space between the end of the humongous object and the end of the last region spanned by the object is unused. For objects that are just slightly larger than a multiple of the heap region size, this unused space can cause the heap to become fragmented.
+>
+> If you see back-to-back concurrent cycles initiated due to humongous allocations and if such allocations are fragmenting your old generation, then increase the value of -XX:G1HeapRegionSize such that previous humongous objects are no longer humongous and will follow the regular allocation path.
+
+- [G1 的缺点](http://mail.openjdk.java.net/pipermail/hotspot-gc-use/2012-November/001430.html)
+
+1. 追求低停顿时间，因而吞吐量比较低：不适合计算型应用（93% 相比 ParallelGC 的 98.7%）；
+2. 不适合小堆：G1 带来的复杂度高于其收益；
+3. 只能在 JDK 6 以上版本使用：first available in Java 6u20；
+4. 平均停顿时间长：200-500ms，默认是 200ms，而 ParallelGC 的 minor gc 停顿时间则小于 100ms（**跟 CMS 比较**）。
+
+- G1 的虚拟机参数
+
+|参数| 作用|
+---|---|
+-XX:G1HeapRegionSize=n|设置 Region 的大小，单位 MB|
+-XX:MaxGCPauseMillis=200|设置回收最长停顿时间，默认 300ms|
+-XX:InitiatingHeapOccupancyPercent=45|设置触发垃圾回收的空间占用比率，默认 45%|
+-XX:G1ReservePercent=10|设置用于 to 空间的内存比率，回收后存活的对象被拷贝到这个空间，默认为 10%|
+
+- 其他注意点
+
+1. 不要设置 G1 新生代的大小
 
 - Java 8 的默认垃圾收集器：Parallel Scavenge + Serial Old
 - 有做过哪些 GC 调优？
@@ -256,17 +330,24 @@ CMS 的回收线程因为是与用户线程并发执行的，所以需要预留�
 
 - 年轻代和老年代的比例
 
-默认的，年轻代与老年代的比例的值为 1:2 ( 该值可以通过参数 `–XX:NewRatio` 来指定 )，即：年轻代= 1/3 的堆空间大小。老年代= 2/3 的堆空间大小。其中，新生代被细分为 Eden 和 两个 Survivor 区域，这两个 Survivor 区域分别被命名为 from 和 to，以示区分。
+默认的，年轻代与老年代的比例的值为 1:2 ( 该值可以通过参数 `–XX:NewRatio` 来指定），即：年轻代= 1/3 的堆空间大小。老年代= 2/3 的堆空间大小。其中，新生代被细分为 Eden 和 两个 Survivor 区域，这两个 Survivor 区域分别被命名为 from 和 to，以示区分。
 
 默认的，Edem:from:to = 8:1:1（可以通过参数 `–XX:SurvivorRatio` 来设定），即：Eden = 8/10 的新生代空间大小，from = to = 1/10 的新生代空间大小。
 
-堆大小 = 新生代 + 老年代。其中，堆的大小可以通过参数 –Xms、-Xmx 来指定。
+堆大小 = 新生代 + 老年代。其中，堆的大小可以通过参数 –Xms、-Xmx 来指定，新生代的大小用 -Xmn 指定，-XX:NewSize 指定新生代初始大小，-XX:MaxNewSize=1024MB 指定新生代最大值。
+
+*增大新生代的大小，可以降低 minor gc 的频率，但不一定会增大 minor gc 的时间，因为 minor gc 的耗时和要拷贝的对象数量相关*。
 
 - 年轻代对象什么时候会进入老年代？
 
 1. 大对象：虚拟机提供了一个 `-XX:PretenureSizeThreshold` 参数，令大于这个设置值的对象直接在老年代分配。这样做的目的是避免在 Eden 区及两个 Survivor 区之间发生大量的内存复制；
 2. 存活超过一定时间的对象：通过设置 `以XX:MaxTenuringThreshold=1` 来指定对象存活过多少次 minor gc 就移入老年代，默认是 15；
-3. 如果在 Survivor 空间中相同年龄所有对象大小的总和大于 Survivor 空间的一半，年龄大于或等于该年龄的对象就可以直接进入老年代，无须等到 MaxTenuringThreshold 中要求的年龄。
+3. 如果在 Survivor 空间中相同年龄所有对象大小的总和大于 Survivor 空间的一半，年龄大于或等于该年龄的对象就可以直接进入老年代，无须等到 MaxTenuringThreshold 中要求的年龄；
+4. minor gc 后 to 区无法存放下所有存活对象，则一部分被分配担保到老年代。
+
+- ParNew promotion failed 的出现场景
+
+在进行 minor gc 时，因为 survivor 区域不足以放下所有存活的对象，因此需要将一部分对象放入老年代中，而如果这时候老年代的空间也不足的话，就会出现 “ParNew promotion failed”。
 
 - 什么时候会触发垃圾回收？
 
@@ -278,6 +359,8 @@ CMS 的回收线程因为是与用户线程并发执行的，所以需要预留�
 4. 方法区空间不足；
 5. 老年代的可用内存小于历次晋升的新生代对象的平均大小；
 6. 由 Eden 区、From Space 区向 To Space 区复制时，对象大小大于 To Space 可用内存，则把该对象转存到老年代，且老年代的可用内存小于该对象大小。
+
+- [手动触发 3 次 minor gc、2 次 full gc，再 2 次 minor gc](手动触发GC.md)
 
 - 什么情况下使用堆外内存？要注意些什么？使用堆外空间的好处是什么？
 
@@ -311,7 +394,7 @@ PhantomReference 在被 GC 线程判定为不可达对象之后，会将其状�
 
 根据“1. PhantomReference 的回收过程”可以知道 tryHandlePending 方法最终会执行到 Deallocator.run 方法，而 Deallocator.run 的作用就是调用 `unsafe.freeMemory(address);`  来释放申请的本地内存。
 
-另外，除了通过 GC 回收，DirectByteBuffer 在实例化的时候还会调用 `Bits.reserveMemory(size, cap);` 来尝试回收堆外空间，而该方法最终调用的也是 Cleaner.clean 方法。（补充一个完整流程）
+另外，除了通过 GC 回收，DirectByteBuffer 在实例化的时候还会调用 `Bits.reserveMemory(size, cap);` 来尝试回收堆外空间，而该方法最终调用的也是 Cleaner.clean 方法。（**补充一个完整流程**）
 
 - oom了怎么办
 
@@ -338,3 +421,8 @@ PhantomReference 在被 GC 线程判定为不可达对象之后，会将其状�
 只要设置 -XX:+PrintGCDetails 就会自动带上 -verbose:gc 和 -XX:+PrintGC
 
 -XX:+PrintGCDateStamps/-XX:+PrintGCTimeStamps 输出gc的触发时间
+
+---
+参考资料：
+
+- https://docs.oracle.com/javase/8/docs/technotes/guides/vm/gctuning/g1_gc_tuning.html

@@ -24,6 +24,14 @@
 >
 > *每个线程把持一个信道*（channel 不是线程安全的，即使某些方法是线程安全的，即多个线程共用一个 channel 的话需要进行额外加锁，所以一般推荐对一个 channel 建立一个线程，一个 channel 就代表了一个消息的消费者），所以信道复用了 Connection 的 TCP 连接。同时 RabbitMQ 可以确保每个线程的私密性，就像拥有独立的连接一样。当每个信道的流量不是很大时，复用单一的 Connection 可以在产生性能瓶颈的情况下有效地节省 TCP 连接资源。但是当信道本身的流量很大时，这时候多个信道复用一个 Connection 就会产生性能瓶颈，进而使整体的流量被限制了。此时就需要开辟多个 Connection，将这些信道均摊到这些 Connection 中。
 
+- queue
+
+队列属性：
+
+1. durable
+2. exclusive
+3. autodelete
+
 - `channel.basicConsume` 是客户端拉取还是 MQ 服务器的推送？
 
 消费的两种模式：推和拉
@@ -55,6 +63,8 @@ RabbitMQ 提供了两种解决方式：
 
 对于批量确认，如果出现返回 `Basic.Nack` 或者超时情况时，客户端需要将这一批次的消息全部重发，这会带来明显的重复消息数量，并且当消息经常丢失时，批量确认的性能是不升反降的。
 
+消息发送确认模式开启之后，每条消息都会基于同一个信道下新增一个投递标签(deliveryTag)属性，deliveryTag 属性是从 1 开始递增的整数，*每个 channel 有自己的 deliverTag 下标标识（nextPublishSeqNo），新建的 channel 其 deliverTag 初始值是 0*，在调用 `confirmSelect()` 方法时判断如果 deliverTag 是 0 的话，就将它置为 1，即可用的 deliverTag 是从 1 开始的。这个消息投递标签和消息消费中的信封(Envelope)中的 deliveryTag 不是同一个属性，后者虽然也是从 1 开始递增，但是它是基于队列而不是信道。
+
 #### 消费确认
 
 消费者客户端可以通过推或者拉模式的方式来获取并消费消息，当消费者处理完业务逻辑需要手动确认消息已被接收，这样 RabbitMQ 才能把当前消息从队列中清除。如果消费者由于某些原因无法处理当前接收到的消息，可以通过 `channel.basciNack` 或者 `channel.basicReject` 来拒绝掉。
@@ -73,7 +83,42 @@ RabbitMQ 提供了两种解决方式：
 
 假设一个应用中需要将每条消息都设置为 10 秒的延迟，生产者通过 `exchange.normal` 这个交换器将发生的消息存储在 `queue.normal` 这个队列中。消费者订阅的并非是 `queue.normal` 这个队列，而是 `queue.dlx` 这个队列。当消息从 `queue.normal` 这个队列中过期之后被存入 `queue.dlx` 队列中，消费者就恰巧消费到了延迟 10 秒的这条消息。
 
+
+#### 消息持久化
+
+需要同时持久化队列以及消息。
+
+1. 设置队列持久化：
+
+```java
+Connection connection = connectionFactory.newConnection();
+Channel channel = connection.createChannel();
+// Queue.DeclareOk queueDeclare(String queue, boolean durable, boolean exclusive, boolean autoDelete,
+                                 Map<String, Object> arguments) throws IOException;
+channel.queueDeclare("queue.persistent.name", true, false, false, null);
+```
+
+2. 设置消息模式
+
+```java
+AMQP.BasicProperties.Builder builder = new AMQP.BasicProperties.Builder();
+// deliverMode：1，不持久化；2，持久化。
+builder.deliveryMode(2);
+AMQP.BasicProperties properties = builder.build();
+channel.basicPublish("exchange.persistent", "persistent",properties, "persistent_test_message".getBytes());
+// 或者方便点的方法
+channel.basicPublish("exchange.persistent", "persistent", MessageProperties.PERSISTENT_TEXT_PLAIN, "persistent_test_message".getBytes());
+```
+
+- 消息什么时候刷到磁盘？
+
+写入文件前会有一个 Buffer，大小为 1M，数据在写入文件时，首先会写入到这个 Buffer，如果 Buffer 已满，则会将 Buffer 写入到文件（未必刷到磁盘）。
+有个固定的刷盘时间：25ms，也就是不管 Buffer 满不满，每个 25ms，Buffer 里的数据及未刷新到磁盘的文件内容必定会刷到磁盘。
+每次消息写入后，如果没有后续写入请求，则会直接将已写入的消息刷到磁盘：使用 Erlang 的 receive x after 0 实现，只要进程的信箱里没有消息，则产生一个 timeout 消息，而 timeout 会触发刷盘操作。
+
+当开启发送确认模式后，RabbitMQ 会在消息写入磁盘之后返回确认。
 ---
 - 参考资料
 
 1. 《RabbitMQ 实战指南》
+2. https://blog.csdn.net/u013256816/article/details/60875666
