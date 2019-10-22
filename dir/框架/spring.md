@@ -109,6 +109,12 @@ public AopProxy createAopProxy(AdvisedSupport config) throws AopConfigException 
 
 ![image](../img/spring_bean_lifecycle.jpg)
 
+- BeanFactory 和 ApplicationContext 的区别。
+
+Sping的容器可以分为两种类型：
+1. `org.springframework.beans.factory.BeanFactory`：是最简单的容器，提供了基本的依赖注入支持。最常用的 BeanFactory 实现就是 XmlBeanFactory 类，它根据 XML 文件中的定义加载 beans，该容器从 XML 文件读取配置元数据并用它去创建一个完全配置的系统或应用；
+2. `org.springframework.context.ApplicationContext`：BeanFactory 的子类，并提供面向应用的服务。
+
 - setter 方法注入和构造器注入哪种会有循环依赖的问题？
 
 构造器注入的方式会有循环依赖的问题。换成 setter 方法注入即可解决这个问题。因为 setter 方法注入会首先调用默认构造函数来实例化对象，然后再调用 setter 实现依赖注入。这样在对象实例化的阶段就没有了任何依赖。

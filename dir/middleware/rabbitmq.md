@@ -69,6 +69,21 @@ RabbitMQ 提供了两种解决方式：
 
 消费者客户端可以通过推或者拉模式的方式来获取并消费消息，当消费者处理完业务逻辑需要手动确认消息已被接收，这样 RabbitMQ 才能把当前消息从队列中清除。如果消费者由于某些原因无法处理当前接收到的消息，可以通过 `channel.basciNack` 或者 `channel.basicReject` 来拒绝掉。
 
+这里并没有用到超时机制，RabbitMQ 仅通过 Consumer 的连接中断来确认是否需要重新发送消息。也就是说，只要连接不中断，RabbitMQ 给了 Consumer 足够长的时间来处理消息。
+
+下面罗列几种特殊情况：
+
+1. 如果消费者接收到消息，在确认之前断开了连接或取消订阅，RabbitMQ 会认为消息没有被分发，然后重新分发给下一个订阅的消费者。（可能存在消息重复消费的隐患，需要根据 bizId 去重）；
+2. 如果消费者接收到消息却没有确认消息，连接也未断开，则 RabbitMQ 认为该消费者繁忙，将不会给该消费者分发更多的消息。
+
+- 消息如何分发？
+
+若该队列至少有一个消费者订阅，消息将以循环（round-robin）的方式发送给消费者。每条消息只会分发给一个订阅的消费者（前提是消费者能够正常处理消息并进行确认）。
+
+#### 消费的线程模式
+
+消息接收线程、业务处理线程、业务队列。
+
 #### 死信
 
 - 消息变成死信的原因：
@@ -86,9 +101,13 @@ RabbitMQ 提供了两种解决方式：
 
 #### 消息持久化
 
-需要同时持久化队列以及消息。
+需要同时持久化交换器、队列以及消息。
 
-1. 设置队列持久化：
+1. 设置交换器持久化：非持久化的交换器在服务重启时会丢失
+```java
+exchangeDeclare(String exchange, String type, boolean durable);
+```
+2. 设置队列持久化：非持久化的队列在服务重启时会丢失
 
 ```java
 Connection connection = connectionFactory.newConnection();
@@ -98,7 +117,7 @@ Channel channel = connection.createChannel();
 channel.queueDeclare("queue.persistent.name", true, false, false, null);
 ```
 
-2. 设置消息模式
+3. 设置消息模式
 
 ```java
 AMQP.BasicProperties.Builder builder = new AMQP.BasicProperties.Builder();
@@ -109,6 +128,8 @@ channel.basicPublish("exchange.persistent", "persistent",properties, "persistent
 // 或者方便点的方法
 channel.basicPublish("exchange.persistent", "persistent", MessageProperties.PERSISTENT_TEXT_PLAIN, "persistent_test_message".getBytes());
 ```
+
+RabbitMQ 确保持久性消息能从服务器重启中恢复的方式是，将它们写入磁盘上的一个持久化日志文件，当发布一条持久性消息到持久交换器上时，RabbitMQ 会在消息提交到日志文件后才发送响应（如果消息路由到了非持久队列，它会自动从持久化日志中移除）。一旦消费者从持久队列中消费了一条持久化消息，RabbitMQ 会在持久化日志中把这条消息标记为等待垃圾收集。如果持久化消息在被消费之前 RabbitMQ 重启，那么会自动重建交换器和队列（以及绑定），并重播持久化日志文件中的消息到合适的队列或者交换器上。
 
 - 消息什么时候刷到磁盘？
 

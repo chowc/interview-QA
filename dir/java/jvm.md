@@ -173,9 +173,9 @@ Reference 的状态转换：
 
 1. 按照单/多线程划分：
 
-单线程：Serial、Serial Old
+单线程：Serial（STW）、Serial Old（STW）
 
-多线程：ParNew、Parallel Scavenge、Parallel Old、CMS、G1
+多线程：ParNew（STW）、Parallel Scavenge、Parallel Old（STW）、CMS、G1
 
 2. 按照垃圾回收区域划分
 
@@ -222,17 +222,73 @@ CMS（Concurrent Mark Sweep）
 
 1. 初始标记
 
-初始标记仅仅只是标记一下 GCRoots 能直接关联到的对象，速度很快，**需要停止其他正在运行的线程**。
+初始标记仅仅只是标记一下老年代中 GCRoots 能直接关联到的对象或者是被新生代指向的对象，速度很快，**需要停止其他正在运行的线程**。
 
 2. 并发标记
 
-并发标记阶段就是进行 GCRoots Tracing 的过程，可以与其他用户线程一起并发。
+并发标记阶段就是进行 GCRoots Tracing 的过程，可以与其他用户线程一起并发。在此过程中，如果有新生代对象被修改，指向了老年代对象，对应的 card table 会被更新。
 
-3. 重新标记
+3. 并发预清理：Concurrent Preclean
+
+根据步骤 2 的 card table 来更新老年代中的对象可达性。此阶段执行完后，清空 card table。
+
+**在新生代找指向老年代的对象，需要扫描新生代的所有对象。在老年代找指向新生代的对象，因为老年代持有新生代对象引用的情况不足 1%，可以使用 card table 来记录每个老年代对象的跨区引用**。卡表的具体策略是将老年代的空间分成大小为 512B 的若干张卡（card）。卡表本身是单字节数组，数组中的每个元素对应着一张卡，当发生老年代引用新生代时，虚拟机将该卡对应的卡表元素设置为适当的值。GC时通过扫描卡表就可以很快的识别哪些卡中存在老年代指向新生代的引用。这样虚拟机通过空间换时间的方式，避免了全堆扫描。
+
+> Precleaning is also a concurrent phase. Here in this phase we look at the objects in CMS heap which got updated by promotions from young generation or new allocations or got updated by mutators while we were doing the concurrent marking in the previous concurrent marking phase. By rescanning those objects concurrently, the precleaning phase helps reduce the work in the next stop-the-world “remark” phase.
+
+4. 并发可中断预清理：Concurrent Abortable Preclean
+
+新生代垃圾回收完剩下的对象全是活着的，并且活着的对象很少。如果能在并发可中断预清理阶段发生一次 Minor GC，那重新标记 STW 时间就会缩短很多。
+
+CMS 有两个参数：CMSScheduleRemarkEdenSizeThreshold、CMSScheduleRemarkEdenPenetration，默认值分别是2M、50%。
+
+`-XX:CMSScheduleRemarkEdenSizeThreshold`（默认2m）：控制并发可中断预清理阶段什么时候开始执行，即当 Eden 区使用超过此值时，才会开始此阶段。
+
+`-XX:CMSScheduleRemarkEdenPenetratio`（默认50%）：控制并发可中断预清理阶段什么时候结束执行。
+
+所以两个参数组合起来的意思是 Eden 空间使用超过 2M 时启动可中断的并发预清理，直到 Eden 空间使用率达到 50% 时中断，进入重新标记阶段。
+
+那可终止的预清理要执行多长时间来保证发生一次 Minor GC 呢？答案是没法保证。道理很简单，因为垃圾回收是 JVM 自动调度的，什么时候进行 GC 我们控制不了。
+
+但此阶段总有一个执行时间吧。CMS 提供了一个参数 CMSMaxAbortablePrecleanTime ，默认为 5S。只要到了 5S，不管发没发生 Minor GC，有没有到 CMSScheduleRemardEdenPenetration 都会中止此阶段，进入下一阶段。
+
+如果在 5S 内还是没有执行 Minor GC 怎么办？CMS 提供 CMSScavengeBeforeRemark 参数，使重新弄标记前强制进行一次 Minor GC。
+
+这样做利弊都有：
+	1. 好的一面是减少了重新标记阶段的停顿时间；
+	2. 坏的一面是 Minor GC 后紧跟着一个重新标记的 STW，如此一来，停顿时间也比较久。
+
+5. 重新标记：多线程进行
 
 重新标记阶段则是为了修正并发标记期间因用户程序继续运作而导致标记产生变动的那一部分对象的标记记录，这个阶段的停顿时间一般会比初始标记阶段稍长一些，但远比并发标记的时间短，**需要停止其他正在运行的线程**。
 
-4. 并发清除
+> Usually CMS tries to run final remark phase when Young Generation is as empty as possible in order to eliminate the possibility of several stop-the-world phases happening back-to-back：所以引入了 abortable preclean。
+
+6. 并发清除
+
+清除不可达对象，将空闲内存加入到 free list。
+
+7. Concurrent Reset
+
+> Concurrently executed phase, resetting inner data structures of the CMS algorithm and preparing them for the next cycle.
+
+- CMS 的垃圾收集日志说明
+
+> CMS-initial-mark indicates the start of the concurrent collection cycle, CMS-concurrent-mark indicates the end of the concurrent marking phase, and CMS-concurrent-sweep marks the end of the concurrent sweeping phase. Not discussed previously is the precleaning phase indicated by CMS-concurrent-preclean. Precleaning represents work that can be done concurrently in preparation for the remark phase CMS-remark. The final phase is indicated by CMS-concurrent-reset and is in preparation for the next concurrent collection.
+
+> the CMS collector is generational; thus both minor and major collections occur.
+
+> The CMS collector throws an OutOfMemoryError if too much time is being spent in garbage collection: if more than 98% of the total time is spent in garbage collection and less than 2% of the heap is recovered, then an OutOfMemoryError is thrown. This feature is designed to prevent applications from running for an extended period of time while making little or no progress because the heap is too small. If necessary, this feature can be disabled by adding the option -XX:-UseGCOverheadLimit to the command line.
+>
+> The policy is the same as that in the parallel collector, except that time spent performing concurrent collections is not counted toward the 98% time limit. In other words, only collections performed while the application is stopped count toward excessive GC time. Such collections are typically due to a concurrent mode failure or an explicit collection request (for example, a call to System.gc).
+
+- CMS 什么时候触发回收？
+
+> Based on recent history, the CMS collector maintains estimates of the time remaining before the tenured generation will be exhausted and of the time needed for a concurrent collection cycle. Using these dynamic estimates, a concurrent collection cycle is started with the aim of completing the collection cycle before the tenured generation is exhausted. These estimates are padded for safety, because concurrent mode failure can be very costly.
+
+> A concurrent collection also starts if the occupancy of the tenured generation exceeds an initiating occupancy (a percentage of the tenured generation). The default value for this initiating occupancy threshold is approximately 92%, but the value is subject to change from release to release. This value can be manually adjusted using the command-line option -XX:CMSInitiatingOccupancyFraction=<N>, where <N> is an integral percentage (0 to 100) of the tenured generation size.
+
+在 JDK 1.5 中预留空间为 68%，也就是老年代空间使用了 68% 之后会触发 CMS 进行回收。在 1.6 中提高到 92%。
 
 - CMS 有哪些重要参数？
 
@@ -244,7 +300,7 @@ CMS（Concurrent Mark Sweep）
 
 - Concurrent Mode Failure 的出现场景
 
-CMS 的回收线程因为是与用户线程并发执行的，所以需要预留足够的内存空间给用户线程执行所需，CMS 会在老年代使用了预留空间大小的内存后被激活，可以通过参数 `-XX:CMSInitiatingOccupancyFraction` 来设置，在 JDK 1.5 中预留空间为 68%，也就是老年代空间使用了 68% 之后会触发 CMS 进行回收。在 1.6 中提高到 92%。要是 CMS 运行期间预留的内存无法满足程序需要，就会出现一次 "Concurrent Mode Failure" 失败，这时虚拟机将启动后备预案：临时启用 SerialOld 收集器来重新进行老年代的垃圾收集，这样停顿时间就很长了。
+CMS 的回收线程因为是与用户线程并发执行的，所以需要预留足够的内存空间给用户线程执行所需，CMS 会在老年代使用了预留空间大小的内存后被激活，可以通过参数 `-XX:CMSInitiatingOccupancyFraction` 来设置，在 JDK 1.5 中预留空间为 68%，也就是老年代空间使用了 68% 之后会触发 CMS 进行回收。在 1.6 中提高到 92%。要是 CMS 运行期间预留的内存无法满足程序需要，就会出现一次 "Concurrent Mode Failure" 失败，这时虚拟机将启动后备预案：*临时启用 SerialOld 收集器来重新进行老年代的垃圾收集*，这样停顿时间就很长了。
 
 - CMS 的优缺点？
 
@@ -345,6 +401,15 @@ G1 跟踪各个 Region 里面的垃圾堆积的价值大小（回收所获得的
 3. 如果在 Survivor 空间中相同年龄所有对象大小的总和大于 Survivor 空间的一半，年龄大于或等于该年龄的对象就可以直接进入老年代，无须等到 MaxTenuringThreshold 中要求的年龄；
 4. minor gc 后 to 区无法存放下所有存活对象，则一部分被分配担保到老年代。
 
+- JVM引入动态年龄计算的原因
+
+主要基于如下两点考虑：
+
+1. 如果固定按照 MaxTenuringThreshold 设定的阈值作为晋升条件：
+	1. MaxTenuringThreshold 设置的过大，原本应该晋升的对象一直停留在 Survivor 区，直到 Survivor 区溢出，一旦溢出发生，Eden+Svuvivor 中对象将不再依据年龄全部提升到老年代，这样对象老化的机制就失效了；
+	2. MaxTenuringThreshold 设置的过小，“过早晋升”即对象不能在新生代充分被回收，大量短期对象被晋升到老年代，老年代空间迅速增长，引起频繁的 Major GC。分代回收失去了意义，严重影响GC性能；
+2. 相同应用在不同时间的表现不同：特殊任务的执行或者流量成分的变化，都会导致对象的生命周期分布发生波动，那么固定的阈值设定，因为无法动态适应变化，会造成和上面相同的问题。
+
 - ParNew promotion failed 的出现场景
 
 在进行 minor gc 时，因为 survivor 区域不足以放下所有存活的对象，因此需要将一部分对象放入老年代中，而如果这时候老年代的空间也不足的话，就会出现 “ParNew promotion failed”。
@@ -425,4 +490,6 @@ PhantomReference 在被 GC 线程判定为不可达对象之后，会将其状�
 ---
 参考资料：
 
-- https://docs.oracle.com/javase/8/docs/technotes/guides/vm/gctuning/g1_gc_tuning.html
+- [Garbage-First Garbage Collector Tuning](https://docs.oracle.com/javase/8/docs/technotes/guides/vm/gctuning/g1_gc_tuning.html)
+- [Concurrent Mark Sweep (CMS) Collector](https://docs.oracle.com/javase/8/docs/technotes/guides/vm/gctuning/cms.html)
+- [从实际案例聊聊Java应用的GC优化](https://tech.meituan.com/2017/12/29/jvm-optimize.html)
