@@ -151,9 +151,17 @@ JVM使用 -XX:PermSize 设置非堆内存初始值，默认是物理内存的 1/
 
 在实例化一个 `java.lang.ref.Reference` 时可以指定一个 ReferenceQueue，该 ReferenceQueue 会影响后续 Reference 对象的回收过程。
 
-Reference 的状态转换：
+Reference 对象的状态转换：
 
 ![image](../img/reference_state.png)
+
+其中，[ReferenceHandler](tryHandlePending.md) 线程会在 Reference 类加载的时候启动，负责调用 Cleaner 类的 clean 方法，以及将 Reference 对象移入 ReferenceQueue（状态变为 Enqueue）。
+
+ReferenceQueue 的作用是存储那些将被回收的 Reference，用户代码可以遍历队列，来进行例如清理的工作，当 Reference 对象被移出 ReferenceQueue 的时候就变为 Inactive。
+
+强引用 Finalizer 类会在类加载的时候启动一个 FinalizerThread 线程，**来对 ReferenQueue 中的 Reference 对象逐一执行它们的 referent 的 `finalize()` 方法**，并且将其移出队列。
+
+而对于非 Finalizer 类的 Reference 对象，则需要自己实现将 Reference 对象移出队列的过程（**存疑**），例如：[WeakHashMap.expungeStaleEntries](expungeStaleEntries.md) 方法对继承了 WeakHashMap 的 Entry 对象进行了移出队列操作，并且将 Entry 移出数组链表。
 
 - 几种垃圾回收算法
 
@@ -447,7 +455,7 @@ NIO、Java 8 中的 MetaSpace。用参数 `-XX:MaxDirectMemorySize` 来指定可
 
 1. PhantomReference 的回收过程
 
-PhantomReference 在被 GC 线程判定为不可达对象之后，会将其状态从 Active 改为 Pending（当 PhantomReference 实例化时指定了 ReferenceQueue 的情况下），並且 Reference 类在类初始化时会启动一个线程来负责对 Pending 状态的对象进行处理，该线程就是负责不停地执行一个 `tryHandlePending` 方法，它会判定当前 Pending 状态的对象是不是 Cleaner 类的实例，如果是的话，就执行 Cleaner 的 clean 方法，而 `Cleaner.clean` 方法的作用就是运行 Cleaner 构造方法传入的 Runnable 任务。
+PhantomReference 在被 GC 线程判定为不可达对象之后，会将其状态从 Active 改为 Pending（前提是 PhantomReference 实例化时指定了 ReferenceQueue），並且 Reference 类在类加载时会启动一个线程来负责对 Pending 状态的对象进行处理，该线程就是负责不停地执行一个 `tryHandlePending` 方法，它会判定当前 Pending 状态的对象是不是 Cleaner 类的实例，如果是的话，就执行 Cleaner 的 clean 方法，而 `Cleaner.clean` 方法的作用就是运行 Cleaner 构造方法传入的 Runnable 任务。
 
 2. DirectByteBuffer 实例化的参数说明，Cleaner 的构造参数说明
 

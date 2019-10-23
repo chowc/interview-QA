@@ -11,10 +11,10 @@
 
 - exchange 交换机类型
 
-1. fanout
-2. direct
-3. topic
-4. headers
+1. fanout：把发送到该交换器的消息路由到所有与该交换器绑定的队列上；
+2. direct：把消息路由到 RoutingKey 与 BindingKey 完全一致的队列上；
+3. topic：把消息路由到 RoutingKey 匹配了 BindingKey 的队列上，如 RoutingKey “com.rabbitmq.com" 匹配到 "*.rabbitmq.*"，* 用于表示一个单词，# 用于表示任意个单词，单词之间通过 . 分隔；
+4. headers：根据消息内容中的 headers 属性进行匹配，性能差，不实用。
 
 - Connection、channel
 

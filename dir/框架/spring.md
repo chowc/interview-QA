@@ -103,6 +103,12 @@ public AopProxy createAopProxy(AdvisedSupport config) throws AopConfigException 
 1. 实现的方式不同，Java 动态代理是通过动态生成一个实现了被代理接口的类，并且通过 `InvocationHandler.invoke(Object proxy, Method method, Object[] args)` 进行委托调用的；而 cglib 是通过动态生成被代理对象的子类；
 2. Java 动态代理的对象需要实现某个接口，而 cglib 的代理对象不需要；但是 cglib 代理的对象类不能是 final 的，代理方法不能是 final 的。
 
+- [手写动态代理的示例代码](动态代理.md)
+
+- spring bean 的加载过程：`getBean` 方法
+
+1. 检查缓存；
+
 - spring 中 bean 的生命周期是怎样的？
 
 当 IOC 容器是 ApplicationContext 时，singleton bean 的生命周期如下图，其中，如果使用的不是 ApplicationContext 而是 BeanFactory 的话，则 “调用 ApplicationContextAware 的 setApplicationContext 方法”这一阶段不会出现，另外这一阶段实际上是在 ApplicationContextAwareProcessor 这个 BeanPostProcessor 的 `postProcessBeforeInitialization` 方法中执行的。
@@ -111,9 +117,21 @@ public AopProxy createAopProxy(AdvisedSupport config) throws AopConfigException 
 
 - BeanFactory 和 ApplicationContext 的区别。
 
-Sping的容器可以分为两种类型：
-1. `org.springframework.beans.factory.BeanFactory`：是最简单的容器，提供了基本的依赖注入支持。最常用的 BeanFactory 实现就是 XmlBeanFactory 类，它根据 XML 文件中的定义加载 beans，该容器从 XML 文件读取配置元数据并用它去创建一个完全配置的系统或应用；
-2. `org.springframework.context.ApplicationContext`：BeanFactory 的子类，并提供面向应用的服务。
+Sping 的容器可以分为两种类型：
+1. `org.springframework.beans.factory.BeanFactory`：是最简单的容器，提供了基本的依赖注入支持，默认使用延迟初始化策略。最常用的 BeanFactory 实现就是 XmlBeanFactory 类，它根据 XML 文件中的定义加载 beans，该容器从 XML 文件读取配置元数据并用它去创建一个完全配置的系统或应用，适合资源有限且功能要求不是很严格的场景；
+2. `org.springframework.context.ApplicationContext`：BeanFactory 的简介子类，除了 BeanFactory 拥有的功能外，还提供了诸如事件发布、国际化支持等。ApplicationContext 管理的对象默认在容器启动后进行初始化。适合系统资源充足，且要求更多功能的场景。
+
+```java
+// BeanFactory 调用代码示例
+DefaultListableBeanFactory beanFactory = new DefaultListableBeanFactory();
+BeanDefinitionReader beanDefinitionReader = new XmlBeanDefinitionReader(beanFactory);
+beanDefinitionReader.loadBeanDefinitions(new ClassPathResource("applicationContext.xml"));
+DemoServiceImpl demo = (DemoServiceImpl) beanFactory.getBean("demo");
+
+// ApplicationContext 调用代码示例
+ApplicationContext ctx = new ClassPathXmlApplicationContext("applicationContext.xml");
+DemoService demo = (DemoService) ctx.getBean("demo");
+```
 
 - setter 方法注入和构造器注入哪种会有循环依赖的问题？
 
