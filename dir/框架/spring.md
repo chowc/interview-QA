@@ -105,9 +105,19 @@ public AopProxy createAopProxy(AdvisedSupport config) throws AopConfigException 
 
 - [手写动态代理的示例代码](动态代理.md)
 
-- spring bean 的加载过程：`getBean` 方法
+- `BeanFactory.getBean` 的过程
 
-1. 检查缓存；
+1. 检查缓存中是否有对应的单例 bean，有就直接返回；
+2. 没有的话，就先获取 bean RootBeanDefinition；
+3. 先处理 bean 依赖的对象（`depends-on` 定义的依赖关系而不是对象属性的依赖）；
+4. 根据 RootBeanDefinition 的不同类型（）进行相应的创建逻辑：
+    1. singleton：IOC 容器中有且只有一个对象，多次调用 `getBean` 返回同一个对象；
+    2. prototype：每次调用 `getBean` 返回一个新对象；
+    3. scope：
+        1. HTTP Request 每次 HTTP 请求共用同一个对象；
+        2. HTTP Session 每个 HTTP 会话共用同一个对象；
+        3. Application ServletContext 共用一个对象。
+5. 创建一个 bean 的流程：实例化、填充属性、`BeanNameAware.setBeanName`、`BeanFactoryAware.setBeanFactory`、`ApplicationContextAware.setApplicationContext`、BeanPostProcess...
 
 - spring 中 bean 的生命周期是怎样的？
 
@@ -136,6 +146,25 @@ DemoService demo = (DemoService) ctx.getBean("demo");
 - setter 方法注入和构造器注入哪种会有循环依赖的问题？
 
 构造器注入的方式会有循环依赖的问题。换成 setter 方法注入即可解决这个问题。因为 setter 方法注入会首先调用默认构造函数来实例化对象，然后再调用 setter 实现依赖注入。这样在对象实例化的阶段就没有了任何依赖。
+
+- 什么是 FactoryBean？
+
+FactoryBean 是 Spring 提供的接口，可以通过实现它来定义对某个类的实例化规则，即实现一个简单工厂类。对于这个类的依赖，可以通过 `FactoryBean.getObject()` 方法返回的对象作为依赖注入。
+
+适用场景有：
+
+1. 某些对象的实例化过程过于繁琐，通过工厂类进行封装；
+2. 某些第三方库不能直接注册到 Spring 容器的时候，需要通过工厂类来实现对象实例化。
+
+```java
+public interface FactoryBean {
+    Object getObject() throw Exception;
+    // 返回工厂类生产对象的类型；
+    Class getObjectType();
+    // 返回的实例是否使用单例
+    boolean isSingleton();
+}
+```
 
 - spring 的事务传播以及回滚
 

@@ -103,4 +103,65 @@ public static Integer valueOf(int i) {
     return new Integer(i);
 }
 ```
+- Integer 与自动装箱、拆箱
+```java
+public static void main(String[] args) {
+    Integer a = 1;
+    Integer b = 2;
+    Integer c = 3;
+    Integer d = 3;
+    Integer e = 321;
+    Integer f = 321;
+    Long g = 3L;
+    System.out.println(c == d);// True：缓存的对象
+    System.out.println(e == f);// False：不在缓冲范围 [-128, 127] 内
+    // 涉及运算时采用 raw type
+    System.out.println(c == (a+b));// True：
+    // equals 比较则使用包装类型
+    System.out.println(c.equals(d));// True
+    System.out.println(g == (a+b));// True
+    System.out.println(g.equals(a+b));// False
 
+    /*
+    Integer integer = Integer.valueOf(1);
+    Integer integer1 = Integer.valueOf(2);
+    Integer integer2 = Integer.valueOf(3);
+    Integer integer3 = Integer.valueOf(3);
+    Integer integer4 = Integer.valueOf(321);
+    Integer integer5 = Integer.valueOf(321);
+    Long long1 = Long.valueOf(3L);
+    System.out.println(integer2 == integer3);
+    System.out.println(integer4 == integer5);
+    System.out.println(integer2.intValue() == integer.intValue() + integer1.intValue());
+    System.out.println(integer2.equals(integer3));
+    System.out.println(long1.longValue() == (long)(integer.intValue() + integer1.intValue()));
+    System.out.println(long1.equals(Integer.valueOf(integer.intValue() + integer1.intValue())));
+    */
+}
+```
+
+#### String
+
+- [为什么 String.hashCode 方法中选择了 31 这个质数作为乘法运算的因子？](https://segmentfault.com/a/1190000010799123#articleHeader1)
+```java
+// 1.8
+// String.hashCode
+hashCode() {
+    int h = hash;
+    if (h == 0 && value.length > 0) {
+        char val[] = value;
+
+        for (int i = 0; i < value.length; i++) {
+            h = 31 * h + val[i];
+        }
+        hash = h;
+    }
+    return h;
+}
+```
+
+选择的质数太小（例如 2），则运算结果会在一个较小的范围内，从而造成较多的冲突；选择的质数太大（例如 101），则运算的结果会太大，以致超出整数范围，从而丢失数值信息。
+
+另外，对 31 的运算可以进行优化从而提高效率。
+
+`31 * i == (i << 5) - i`
