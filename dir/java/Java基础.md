@@ -119,6 +119,7 @@ public static void main(String[] args) {
     System.out.println(c == (a+b));// True：
     // equals 比较则使用包装类型
     System.out.println(c.equals(d));// True
+    System.out.println(c.equals(a+b));// True
     System.out.println(g == (a+b));// True
     System.out.println(g.equals(a+b));// False
 
@@ -134,6 +135,7 @@ public static void main(String[] args) {
     System.out.println(integer4 == integer5);
     System.out.println(integer2.intValue() == integer.intValue() + integer1.intValue());
     System.out.println(integer2.equals(integer3));
+    System.out.println(integer2.equals(Integer.valueOf(integer.intValue() + integer1.intValue())));
     System.out.println(long1.longValue() == (long)(integer.intValue() + integer1.intValue()));
     System.out.println(long1.equals(Integer.valueOf(integer.intValue() + integer1.intValue())));
     */
@@ -162,6 +164,6 @@ hashCode() {
 
 选择的质数太小（例如 2），则运算结果会在一个较小的范围内，从而造成较多的冲突；选择的质数太大（例如 101），则运算的结果会太大，以致超出整数范围，从而丢失数值信息。
 
-另外，对 31 的运算可以进行优化从而提高效率。
+另外，对 31 的运算可以进行优化从而提高效率：
 
 `31 * i == (i << 5) - i`

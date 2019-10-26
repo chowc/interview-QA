@@ -14,9 +14,12 @@
 #### [spring](./dir/框架/spring.md)
 #### [Dubbo](./dir/框架/Dubbo.md)
 #### [Mybatis](./dir/框架/mybatis.md)
+
 ### 中间件
 
 #### [RabbitMQ](./dir/middleware/rabbitmq.md)
+#### [zookeeper](./dir/middleware/zk.md)
+#### [netty](./dir/middleware/netty.md)
 
 ### 数据库
 
@@ -25,3 +28,14 @@
 ### [网络](./dir/网络.md)
 
 ### [数据结构](./dir/data_structure.md)
+
+### [设计模式](./dir/design/设计模式.md)
+
+### [操作系统](./dir/os/Linux.md)
+
+### 分布式
+
+#### [理论](./dir/分布式/分布式理论.md)
+#### [rpc](./dir/分布式/rpc.md)
+#### [限流算法](./dir/分布式/限流算法.md)
+#### [分布式缓存](./dir/分布式/分布式缓存.md)

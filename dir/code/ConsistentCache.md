@@ -3,7 +3,36 @@
 实现一致性哈希的几个关键地方主要如下：
 
 1. 虚拟节点：需要将虚拟节点映射到各个真实节点上；
-2. 虚拟节点的查找：需要根据给定的 Key 找到不小于它的第一个虚拟节点，这一点可以使用 TreeMap 的 `tailMap(K fromKey)` 方法。
+2. 虚拟节点的查找：需要根据给定的 Key 找到不小于它的第一个虚拟节点，这一点可以使用 TreeMap 的 **`tailMap(K fromKey)` 方法**。
+
+`tailMap(K fromKey)`：返回所有 key 大于等于 fromKey 的所有 entry。
+
+`firstKey()`：返回排序第一的 entry 的 key。
+```java
+public SortedMap<K,V> tailMap(K fromKey) {
+    return tailMap(fromKey, true);
+}
+/**
+ * @throws ClassCastException       {@inheritDoc}
+ * @throws NullPointerException if {@code fromKey} is null
+ *         and this map uses natural ordering, or its comparator
+ *         does not permit null keys
+ * @throws IllegalArgumentException {@inheritDoc}
+ * @since 1.6
+ */
+public NavigableMap<K,V> tailMap(K fromKey, boolean inclusive) {
+    return new AscendingSubMap<>(this,
+                                 false, fromKey, inclusive,
+                                 true,  null,    true);
+}
+
+/**
+ * @throws NoSuchElementException {@inheritDoc}
+ */
+public K firstKey() {
+    return key(getFirstEntry());
+}
+```
 
 ```java
 public class ConsistentCache {
@@ -29,9 +58,10 @@ public class ConsistentCache {
         long hash = hash(key);
         SortedMap<Long, Node> tailMap = circle.tailMap(hash);
         if (tailMap.size() == 0) {
-            //
+            // 默认使用第一个 node
             return circle.firstEntry().getValue();
         }
+        // 因为 SortedMap 没有 firstEntry 方法，所以只能先拿到 key，再得到 value。
         return circle.get(tailMap.firstKey());
     }
 
