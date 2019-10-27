@@ -1,8 +1,8 @@
 ### ReentrantLock（基于 1.8）
 
-实现了 Lock 接口，提供了阻塞获取锁 lock()，非阻塞获取锁 tryLock() 等方法。ReentrantLock 实际上是通过委托 AQS 的实现类 FairSync 和 NonFairSync 来实现的。
+实现了 Lock 接口，提供了阻塞获取锁 lock()，非阻塞获取锁 tryLock() 等方法。ReentrantLock 实际上是通过委托 AQS 的实现类 FairSync 和 NonFairSync 来实现的。*默认使用的是非公平锁*。
 
-另外即使使用的是公平锁，tryLock 方法也是非公平的。
+**另外即使使用的是公平锁，tryLock 方法也是非公平的**。
 
 - ReentrantLock 如何实现公平和非公平锁是如何实现？
 
@@ -29,6 +29,7 @@ protected final boolean tryAcquire(int acquires) {
             return true;
         }
     }
+    // 重入 -> 增加计数
     else if (current == getExclusiveOwnerThread()) {
         int nextc = c + acquires;
         if (nextc < 0)

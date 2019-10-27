@@ -2,11 +2,11 @@
 
 - 所有对象都是在堆上创建的吗?
 
-不是的，随着 JIT 编译器的发展，在编译期间，如果 JIT 经过逃逸分析，发现有些对象没有逃逸出方法，那么有可能堆内存分配会被优化成栈内存分配。
+不是的，随着 JIT 编译器的发展，在编译期间，如果 JIT 经过逃逸分析，发现有些对象不会在方法外被引用到，那么有可能堆内存分配会被优化成栈内存分配。
 
 - 逃逸分析
 
-逃逸分析就是 分析Java对象的动态作用域。当一个对象被定义之后，可能会被外部对象引用，称之为“方法逃逸”；也有可能被其他线程所引用，称之为“线程逃逸”。
+逃逸分析就是分析 Java 对象的动态作用域。当一个对象被定义之后，可能会被外部对象引用，称之为“方法逃逸”；也有可能被其他线程所引用，称之为“线程逃逸”。
 
 利用逃逸分析，编译器可以对代码做如下优化：
 
@@ -27,9 +27,7 @@ private static void getUser() {
 }
 ```
 
--XX:+DoEscapeAnalysis 开启逃逸分析，jdk1.8 默认开启；
-
--XX:-DoEscapeAnalysis 关闭逃逸分析
+`-XX:+DoEscapeAnalysis` 开启逃逸分析，jdk1.8 默认开启；`-XX:-DoEscapeAnalysis` 关闭逃逸分析。
 
 3. 栈上分配：指对象和数据不是创建在堆上，而是创建在栈上，随着方法的结束自动销毁。但实际上，JVM 例如常用的 HotSpot 虚拟机并没有实现栈上分配，实际是用标量替换代替实现的。
 
@@ -52,7 +50,7 @@ private static void getUser() {
 2. 虚拟机栈：**它的生命周期与线程相同，虚拟机栈描述的是 Java 方法执行的内存模型**。每个方法在执行的同时都会创建一个栈帧用于存储局部变量表（方法参数和方法内部定义的局部变量）、操作数栈、动态链接、方法返回地址等信息。**每一个方法从调用直至执行完成的过程，就对应着一个栈帧在虚拟机栈中入栈到出栈的过程**；
 3. 本地栈：即对本地方法调用的方法栈；
 4. 堆：是虚拟机中最大的一块内存，用于存放对象实例，虚拟机内的对象都在这块区域上进行分配，也是垃圾回收的主要关注区域；
-5. 方法区：用于存储已被虚拟机加载的类信息、常量、静态变量、JIT 编译后的代码等。
+5. 方法区：用于存储已被虚拟机加载的类信息、常量、JIT 编译后的代码等。
 
 其中，程序计数器、虚拟机栈、本地栈是线程私有的；堆、方法区是线程共享的。
 
@@ -73,7 +71,7 @@ private static void getUser() {
 
 - 方法区会进行动态拓展吗？
 
-JVM使用 -XX:PermSize 设置非堆内存初始值，默认是物理内存的 1/64；由XX:MaxPermSize 设置最大非堆内存的大小，默认是物理内存的 1/4。MaxPermSize 缺省值和 -server -client 选项相关，-server 选项下默认 MaxPermSize 为 64m，-client 选项下默认 MaxPermSize 为 32m。
+JVM使用 `-XX:PermSize` 设置永久代（方法区）初始值，默认是物理内存的 1/64；由 `-XX:MaxPermSize` 设置永久代的最大值，默认是物理内存的 1/4。MaxPermSize 缺省值和 -server -client 选项相关，-server 选项下默认 MaxPermSize 为 64m，-client 选项下默认 MaxPermSize 为 32m。
 
 - 通过 `Xss128K` 设置每个线程的堆栈大小，将方法栈的大小设置为为 128K。JDK5 以后每个线程堆栈大小为 1M，以前每个线程堆栈大小为 256K。
 - [对象大小的计算](object_size.md)
@@ -93,6 +91,7 @@ JVM使用 -XX:PermSize 设置非堆内存初始值，默认是物理内存的 1/
 
 2. 使用直接指针访问方式的最大好处就是速度更快，它节省了一次指针定位的时间开销，由于对象的访问在 Java 中非常频繁，因此这类开销积少成多后也是一项非常可观的执行成本。
 
+HotSpot 采用的是第二种方式。
 - Hotspot 虚拟机在 Java 7 和 Java 8 做了哪些改动？为什么做这些变动？
 
 *在 Java 7 中将方法区的字符串常量池移动到了堆内*；在 Java 8 中移除了原有的永久代，改用 MetaSpace 替代，並使用了本地内存。
@@ -103,7 +102,7 @@ JVM使用 -XX:PermSize 设置非堆内存初始值，默认是物理内存的 1/
 >
 > http://openjdk.java.net/jeps/122
 
-也就是为了 Hotspot 与 JRockit 的融合，因为 JRockit 是没有使用永久代的；另外，持久代大小受到 `-XX：MaxPermSize` 和 JVM 设定的内存大小限制，这就导致在使用中可能会出现持久代内存溢出的问题，因此在 `Java 8` 及之后的版本中彻底移除了持久代而使用 `Metaspace` 来进行替代。
+也就是为了 Hotspot 与 JRockit 的融合，因为 JRockit 是没有使用永久代的；另外，永久代大小受到 `-XX:MaxPermSize` 和 JVM 设定的内存大小限制，这就导致在使用中可能会出现永久代内存溢出的问题，因此在 Java 8 及之后的版本中彻底移除了永久代而使用 `Metaspace` 来进行替代。
 
 - MetaSpace 的说明
 
@@ -134,7 +133,7 @@ JVM使用 -XX:PermSize 设置非堆内存初始值，默认是物理内存的 1/
 >
 > 软引用是用来描述一些还有用但并非必需的对象。*对于软引用关联着的对象，在系统将要发生内存溢出异常之前，将会把这些对象列进回收范围之中进行第二次回收。如果这次回收还没有足够的内存，才会抛出内存溢出异常*。在 JDK1.2 之后，提供了 SoftReference 类来实现软引用。
 >
-> 弱引用也是用来描述非必需对象的，但是它的强度比软引用更弱一些，*被弱引用关联的对象只能生存到下一次垃圾收集发生之前。当垃圾收集器工作时，无论当前内存是否足够，都会回收掉只被弱引用关联的对象*。在 JDK1.2 之后，提供了 WeakReference 类来实现弱引用。还有 WeakHashMap ，其 key 是一个 WeakReference，当内存中的引用只剩下这个 WeakReference 的 key 的时候，虚拟机就能够自动将其对应的内存进行回收。（**补充 WeakHashMap 中 value 回收的过程**）
+> 弱引用也是用来描述非必需对象的，但是它的强度比软引用更弱一些，*被弱引用关联的对象只能生存到下一次垃圾收集发生之前。当垃圾收集器工作时，无论当前内存是否足够，都会回收掉只被弱引用关联的对象*。在 JDK1.2 之后，提供了 WeakReference 类来实现弱引用。还有 WeakHashMap ，其 key 是一个 WeakReference，当内存中的引用只剩下这个 WeakReference 的 key 的时候，虚拟机就能够自动将其对应的内存进行回收。
 >
 > 虚引用也称为幽灵引用或者幻影引用，它是最弱的一种引用关系。一个对象是否有虚引用的存在，完全不会对其生存时间构成影响，也无法通过虚引用来取得一个对象实例。为一个对象设置虚引用关联的唯一目的就是能在这个对象被收集器回收时收到一个系统通知。在 JDK1.2 之后，提供了 PhantomReference 类来实现虚引用。
 >
@@ -174,7 +173,7 @@ ReferenceQueue 的作用是存储那些将被回收的 Reference，用户代码�
 
 - 垃圾回收的 3 个关键指标
 
-1. 吞吐量：衡量垃圾回收器运行在性能峰值的时候不需要关心垃圾回收器暂停的时间或者需要占用内存的能力；
+1. 吞吐量：运行用户代码时间/（运行用户代码时间+垃圾收集时间）；
 2. 延迟：衡量垃圾回收器最小化甚至消灭由垃圾回收器引起的暂停时间和应用抖动的能力；
 3. 内存占用：衡量为了高效的运行，垃圾回收器需要的内存。
 
@@ -198,25 +197,23 @@ ReferenceQueue 的作用是存储那些将被回收的 Reference，用户代码�
 
 标记清除（Mark-Sweep）：CMS、
 
-复制（Copying）：Serial、ParNew、Parallel Scavenge、
+复制（Copying）：Serial、ParNew、Parallel Scavenge（**无法与 CMS 配合使用**）、
 
 标记整理（Mark-Compact）：Serial Old、Parallel Old
 
 其中，G1 从整体来看是基于“标记-整理”算法实现的收集器，从局部（两个 Region 之间）上看是基于“复制”算法的。
 
-CMS（Concurrent Mark Sweep）
-
-针对老年代的并发的标记清除算法。
+Parallel Scavenge 收集器的特点是它的关注点与其他收集器不同，CMS 等收集器的关注点是尽可能地缩短垃圾收集时用户线程的停顿时间，而 Parallel Scavenge 收集器的目标则是达到一个可控制的吞吐量（Throughput）。所谓吞吐量就是 CPU 用于运行用户代码的时间与 CPU 总消耗时间的比值，即吞吐量=运行用户代码时间/（运行用户代码时间+垃圾收集时间），虚拟机总共运行了 100 分钟，其中垃圾收集花掉 1 分钟，那吞吐量就是 99%。停顿时间越短就越适合需要与用户交互的程序，良好的响应速度能提升用户体验，而高吞吐量则可以高效率地利用 CPU 时间，尽快完成程序的运算任务，主要适合在后台运算而不需要太多交互的任务。
 
 - [如何选择垃圾收集器？](http://novoland.github.io/jvm/2014/07/27/gc.html)
 
 1. 单 CPU 或小内存，单机程序：
 
--XX:+UseSerialGC
+-XX:+UseSerialGC（Serial+Serial Old）
 
 2. 多 CPU，需要最大吞吐量，如后台计算型应用：
 
--XX:+UseParallelGC 或 -XX:+UseParallelOldGC
+-XX:+UseParallelGC（PS+Serial Old） 或 -XX:+UseParallelOldGC（PS+Parallel Old）
 
 3. 多 CPU，追求最低停顿时间，需要快速响应如互联网应用：
 
@@ -235,25 +232,40 @@ CMS（Concurrent Mark Sweep）
 
 2. 并发标记
 
-并发标记阶段就是进行 GCRoots Tracing 的过程，可以与其他用户线程一起并发。在此过程中，如果有新生代对象被修改，指向了老年代对象，对应的 card table 会被更新。
+并发标记阶段就是进行 GCRoots Tracing 的过程，可以与其他用户线程一起并发。
+
+CMS在并发标记阶段，应用线程和GC线程是并发执行的，因此可能产生新的对象或对象关系发生变化，例如：
+	1. 新生代的对象晋升到老年代；
+	2. 直接在老年代分配对象；
+	3. 老年代对象的引用关系发生变更；
+	4. 等等。
+
+对于这些对象，需要重新标记以防止被遗漏。为了提高重新标记的效率，并发标记阶段会把这些发生变化的对象所在的 Card 标识为 Dirty，这样后续阶段就只需要扫描这些 Dirty Card 的对象，从而避免扫描整个老年代。
 
 3. 并发预清理：Concurrent Preclean
 
-根据步骤 2 的 card table 来更新老年代中的对象可达性。此阶段执行完后，清空 card table。
-
-**在新生代找指向老年代的对象，需要扫描新生代的所有对象。在老年代找指向新生代的对象，因为老年代持有新生代对象引用的情况不足 1%，可以使用 card table 来记录每个老年代对象的跨区引用**。卡表的具体策略是将老年代的空间分成大小为 512B 的若干张卡（card）。卡表本身是单字节数组，数组中的每个元素对应着一张卡，当发生老年代引用新生代时，虚拟机将该卡对应的卡表元素设置为适当的值。GC时通过扫描卡表就可以很快的识别哪些卡中存在老年代指向新生代的引用。这样虚拟机通过空间换时间的方式，避免了全堆扫描。
+在并发预清理阶段，将会重新扫描前一个阶段标记的 Dirty 对象，并标记被 Dirty 对象直接或间接引用的对象，然后清除 Card 标识。
 
 > Precleaning is also a concurrent phase. Here in this phase we look at the objects in CMS heap which got updated by promotions from young generation or new allocations or got updated by mutators while we were doing the concurrent marking in the previous concurrent marking phase. By rescanning those objects concurrently, the precleaning phase helps reduce the work in the next stop-the-world “remark” phase.
 
 4. 并发可中断预清理：Concurrent Abortable Preclean
 
+在该阶段，主要循环的做两件事：
+	1. 处理新生代对象，标记可达的老年代对象；
+	2. 和上一个阶段一样，扫描处理 Dirty Card 中的对象。
+
+具体执行多久，取决于许多因素，满足其中一个条件将会中止运行：
+	1. 执行循环次数达到了阈值；
+	2. 执行时间达到了阈值；
+	3. 新生代 Eden 区的内存使用率达到了阈值。
+
 新生代垃圾回收完剩下的对象全是活着的，并且活着的对象很少。如果能在并发可中断预清理阶段发生一次 Minor GC，那重新标记 STW 时间就会缩短很多。
 
-CMS 有两个参数：CMSScheduleRemarkEdenSizeThreshold、CMSScheduleRemarkEdenPenetration，默认值分别是2M、50%。
+CMS 有两个参数：CMSScheduleRemarkEdenSizeThreshold、CMSScheduleRemarkEdenPenetration，默认值分别是 2M、50%。
 
-`-XX:CMSScheduleRemarkEdenSizeThreshold`（默认2m）：控制并发可中断预清理阶段什么时候开始执行，即当 Eden 区使用超过此值时，才会开始此阶段。
+`-XX:CMSScheduleRemarkEdenSizeThreshold`（默认 2m）：控制并发可中断预清理阶段什么时候开始执行，即当 Eden 区使用超过此值时，才会开始此阶段。
 
-`-XX:CMSScheduleRemarkEdenPenetratio`（默认50%）：控制并发可中断预清理阶段什么时候结束执行。
+`-XX:CMSScheduleRemarkEdenPenetratio`（默认 50%）：控制并发可中断预清理阶段什么时候结束执行。
 
 所以两个参数组合起来的意思是 Eden 空间使用超过 2M 时启动可中断的并发预清理，直到 Eden 空间使用率达到 50% 时中断，进入重新标记阶段。
 
@@ -261,7 +273,7 @@ CMS 有两个参数：CMSScheduleRemarkEdenSizeThreshold、CMSScheduleRemarkEden
 
 但此阶段总有一个执行时间吧。CMS 提供了一个参数 CMSMaxAbortablePrecleanTime ，默认为 5S。只要到了 5S，不管发没发生 Minor GC，有没有到 CMSScheduleRemardEdenPenetration 都会中止此阶段，进入下一阶段。
 
-如果在 5S 内还是没有执行 Minor GC 怎么办？CMS 提供 CMSScavengeBeforeRemark 参数，使重新弄标记前强制进行一次 Minor GC。
+如果在 5S 内还是没有执行 Minor GC 怎么办？CMS 提供 CMSScavengeBeforeRemark 参数，使重新标记前强制进行一次 Minor GC。
 
 这样做利弊都有：
 	1. 好的一面是减少了重新标记阶段的停顿时间；
@@ -301,7 +313,7 @@ CMS 有两个参数：CMSScheduleRemarkEdenSizeThreshold、CMSScheduleRemarkEden
 
 - CMS 有哪些重要参数？
 
-1. 设置使用 CMS 收集器：`-XX：+UseConcMarkSweepGC`，默认 HotSpot JVM 使用的是并行收集器；
+1. 设置使用 CMS 收集器：`-XX：+UseConcMarkSweepGC`：ParNew + CMS；
 2. 设置预留给用户线程执行所需的内存空间，预留的空间大小可以通过参数 `-XX:CMSInitiatingOccupancyFraction=N(0-100)` 设置；
 3. 使用增量回收模式：`-XX:+CMSIncrementalMode`，在并发标记、清理的时候让 GC 线程、用户线程交替执行，尽量减少 GC 线程独占资源的时间，同时也会使得 GC 的时间变长；
 4. 设置开启合并整理过程：`-XX:+UseCMSCompactAtFullCollection`，用于开启内存整理，默认是开启的，但会使得停顿时间变长，因为整理过程是不能并发的；
@@ -331,7 +343,7 @@ G1 的回收过程大致分为四个阶段：
 1. 初始标记：STW，只标记 GC Roots 直接可达的对象；
 2. 并发标记：与用户线程并发执行，从 GC Roots 对堆对象进行可达性分析，这阶段发生的引用变动记录到 Remember Set Logs 中；
 3. 最终标记：STW，可并行执行，根据 Remembet Set Logs 对 Remember Set 进行更新；
-4. 筛选回收：对各个 Region 的回收价值和成本进行排序，根据用户所期望的 GC 停顿时间来制定回收计划，这个阶段可以并发进行，也可以 STW 和并行执行，从而提高回收效率。
+4. 筛选回收：对各个 Region 的回收价值和成本进行排序，根据用户所期望的 GC 停顿时间来制定回收计划，决定回收的 Region 和空闲 Region（用于拷贝存活对象）是 STW 的，重置和将空闲 Region 加入 free list 则是并发进行的。
 
 > G1 has a cleanup phase at the end of a collection which is partly STW and partly concurrent. The STW part of the cleanup phase identifies empty regions and determines old regions that are candidates for the next collection. The cleanup phase is partly concurrent when it resets and returns the empty regions to the free list.
 
@@ -395,9 +407,9 @@ G1 跟踪各个 Region 里面的垃圾堆积的价值大小（回收所获得的
 
 - 年轻代和老年代的比例
 
-默认的，年轻代与老年代的比例的值为 1:2 ( 该值可以通过参数 `–XX:NewRatio` 来指定），即：年轻代= 1/3 的堆空间大小。老年代= 2/3 的堆空间大小。其中，新生代被细分为 Eden 和 两个 Survivor 区域，这两个 Survivor 区域分别被命名为 from 和 to，以示区分。
+默认的，年轻代与老年代的比例的值为 1:2 ( 该值可以通过参数 `–XX:NewRatio=2` 来指定），即：年轻代= 1/3 的堆空间大小。老年代= 2/3 的堆空间大小。其中，新生代被细分为 Eden 和 两个 Survivor 区域，这两个 Survivor 区域分别被命名为 from 和 to，以示区分。
 
-默认的，Edem:from:to = 8:1:1（可以通过参数 `–XX:SurvivorRatio` 来设定），即：Eden = 8/10 的新生代空间大小，from = to = 1/10 的新生代空间大小。
+默认的，Edem:from:to = 8:1:1（可以通过参数 `–XX:SurvivorRatio=8` 来设定），即：Eden = 8/10 的新生代空间大小，from = to = 1/10 的新生代空间大小。
 
 堆大小 = 新生代 + 老年代。其中，堆的大小可以通过参数 –Xms、-Xmx 来指定，新生代的大小用 -Xmn 指定，-XX:NewSize 指定新生代初始大小，-XX:MaxNewSize=1024MB 指定新生代最大值。
 
@@ -405,8 +417,8 @@ G1 跟踪各个 Region 里面的垃圾堆积的价值大小（回收所获得的
 
 - 年轻代对象什么时候会进入老年代？
 
-1. 大对象：虚拟机提供了一个 `-XX:PretenureSizeThreshold` 参数，令大于这个设置值的对象直接在老年代分配。这样做的目的是避免在 Eden 区及两个 Survivor 区之间发生大量的内存复制；
-2. 存活超过一定时间的对象：通过设置 `以XX:MaxTenuringThreshold=1` 来指定对象存活过多少次 minor gc 就移入老年代，默认是 15；
+1. 大对象：虚拟机提供了一个 `-XX:PretenureSizeThreshold=<字节大小>` 参数，令大于这个设置值的对象直接在老年代分配。这样做的目的是避免在 Eden 区及两个 Survivor 区之间发生大量的内存复制；
+2. 存活超过一定时间的对象：通过设置 `-XX:MaxTenuringThreshold=1` 来指定对象存活过多少次 minor gc 就移入老年代，默认是 15；
 3. 如果在 Survivor 空间中相同年龄所有对象大小的总和大于 Survivor 空间的一半，年龄大于或等于该年龄的对象就可以直接进入老年代，无须等到 MaxTenuringThreshold 中要求的年龄；
 4. minor gc 后 to 区无法存放下所有存活对象，则一部分被分配担保到老年代。
 
@@ -427,12 +439,12 @@ G1 跟踪各个 Region 里面的垃圾堆积的价值大小（回收所获得的
 
 触发 GC 运行的条件要分新生代和老年代的情况来进行讨论，有以下几点会触发GC：
 
-1. 当 Eden 区和 From Survivor 区满时；
-2. 调用 `System.gc()` 时，系统建议执行 Full GC，但是不必然执行；
-3. 老年代空间不足；
-4. 方法区空间不足；
-5. 老年代的可用内存小于历次晋升的新生代对象的平均大小；
-6. 由 Eden 区、From Space 区向 To Space 区复制时，对象大小大于 To Space 可用内存，则把该对象转存到老年代，且老年代的可用内存小于该对象大小。
+1. 当 Eden 区和 From Survivor 区满时，触发 minor gc；
+2. 调用 `System.gc()` 时，系统建议执行 full gc，但是不必然执行；
+3. 老年代空间不足，触发 full gc；
+4. 方法区空间不足，触发 full gc；
+5. 老年代的可用内存小于历次晋升的新生代对象的平均大小，触发 full gc；
+6. 由 Eden 区、From Space 区向 To Space 区复制时，对象大小大于 To Space 可用内存，则把该对象转存到老年代，且老年代的可用内存小于该对象大小，触发 full gc。
 
 - [手动触发 3 次 minor gc、2 次 full gc，再 2 次 minor gc](手动触发GC.md)
 
@@ -468,8 +480,9 @@ PhantomReference 在被 GC 线程判定为不可达对象之后，会将其状�
 
 根据“1. PhantomReference 的回收过程”可以知道 tryHandlePending 方法最终会执行到 Deallocator.run 方法，而 Deallocator.run 的作用就是调用 `unsafe.freeMemory(address);`  来释放申请的本地内存。
 
-另外，除了通过 GC 回收，DirectByteBuffer 在实例化的时候还会调用 `Bits.reserveMemory(size, cap);` 来尝试回收堆外空间，而该方法最终调用的也是 Cleaner.clean 方法。（**补充一个完整流程**）
+另外，除了通过 GC 回收，DirectByteBuffer 在实例化的时候还会调用 `Bits.reserveMemory(size, cap);` 来尝试回收堆外空间，而该方法最终调用的也是 Cleaner.clean 方法。
 
+![image](../img/directmemory_cleaner.png)
 - oom了怎么办
 
 通过添加启动参数让JVM在遇到OOM(OutOfMemoryError)时生成Dump文件
@@ -484,17 +497,11 @@ PhantomReference 在被 GC 线程判定为不可达对象之后，会将其状�
 ---|---
 -verbose:gc  | 开启 GC 日志打印
 -XX:+PrintGCDetails  | 打印详细的 GC 日志
--XX:+PrintGCDateStamps | 打印出 GC 时间
 -Xloggc:/path/to/gc.log| GC 日志路径
--XX:+UseGCLogFileRotation |  启用GC日志文件的自动转储 (Since Java)
--XX:NumberOfGClogFiles=1 |  GC日志文件的循环数目 (Since Java)
--XX:GCLogFileSize=1M |  控制GC日志文件的大小 (Since Java)
-
--XX:+PrintGC 包含-verbose:gc，-XX:+PrintGCDetails //包含-XX:+PrintGC；
-
-只要设置 -XX:+PrintGCDetails 就会自动带上 -verbose:gc 和 -XX:+PrintGC
-
--XX:+PrintGCDateStamps/-XX:+PrintGCTimeStamps 输出gc的触发时间
+-XX:+UseGCLogFileRotation |  启用GC日志文件的自动转储
+-XX:NumberOfGClogFiles=1 |  GC日志文件的循环数目
+-XX:GCLogFileSize=1M |  控制GC日志文件的大小
+-XX:+PrintGCDateStamps/-XX:+PrintGCTimeStamps| 输出gc的触发时间
 
 ---
 参考资料：
@@ -502,3 +509,4 @@ PhantomReference 在被 GC 线程判定为不可达对象之后，会将其状�
 - [Garbage-First Garbage Collector Tuning](https://docs.oracle.com/javase/8/docs/technotes/guides/vm/gctuning/g1_gc_tuning.html)
 - [Concurrent Mark Sweep (CMS) Collector](https://docs.oracle.com/javase/8/docs/technotes/guides/vm/gctuning/cms.html)
 - [从实际案例聊聊Java应用的GC优化](https://tech.meituan.com/2017/12/29/jvm-optimize.html)
+- [Java 之 CMS 的七个阶段](https://mp.weixin.qq.com/s/vmnBlrM7pTtVuyQU-GTcPw)

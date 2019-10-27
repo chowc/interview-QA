@@ -2,7 +2,7 @@
 
 用在多个线程互相等待的场景中。
 
-通过 `CyclicBarrier(int parties, Runnable barrierAction)` 实例化一个对象，并指定了一个回调对象，parties 表示线程组的数量，不允许为负值。
+通过 `CyclicBarrier(int parties, Runnable barrierAction)` 实例化一个对象，并指定了一个回调对象，parties 表示线程组的数量，需要大于 0。
 ```java
 public CyclicBarrier(int parties, Runnable barrierAction) {
     if (parties <= 0) throw new IllegalArgumentException();
@@ -11,12 +11,20 @@ public CyclicBarrier(int parties, Runnable barrierAction) {
     this.barrierCommand = barrierAction;
 }
 ```
-通过调用 `await()` 来等待其他线程，如果调用线程不是最后一个线程，则会阻塞，否则会先执行 barrierAction，再唤醒其他线程。**在线程 await 过程中中断线程会抛出异常，所有进入屏障的线程都将被释放。**线程等待超时也会释放所有进入屏障的线程。
+通过调用 `await()` 来等待其他线程，如果调用线程不是最后一个线程，则会阻塞，否则会先执行 barrierAction，再唤醒其他线程。**在线程 await 过程中中断线程会抛出异常，所有阻塞的线程都将被释放**。线程等待超时也会释放所有阻塞的线程。
 
-CyclicBarrier 并不像其他并发类在内部实现了 AQS 的子类，而是通过使用 ReentrantLock 来对 parties 的修改进行加锁。
+*CyclicBarrier 并不像其他并发类在内部实现了 AQS 的子类，而是通过使用 ReentrantLock 来对 parties 的修改进行加锁*。
 
 - doWait 是 CyclicBarrier 中的核心方法
 ```java
+public int await() throws InterruptedException, BrokenBarrierException {
+    try {
+        return dowait(false, 0L);
+    } catch (TimeoutException toe) {
+        throw new Error(toe); // cannot happen
+    }
+}
+
 private int dowait(boolean timed, long nanos)
         throws InterruptedException, BrokenBarrierException,
                TimeoutException {
@@ -102,5 +110,21 @@ private void nextGeneration() {
     // set up next generation
     count = parties;
     generation = new Generation();
+}
+
+/**
+ * Each use of the barrier is represented as a generation instance.
+ * The generation changes whenever the barrier is tripped, or
+ * is reset. There can be many generations associated with threads
+ * using the barrier - due to the non-deterministic way the lock
+ * may be allocated to waiting threads - but only one of these
+ * can be active at a time (the one to which {@code count} applies)
+ * and all the rest are either broken or tripped.
+ * There need not be an active generation if there has been a break
+ * but no subsequent reset.
+ */
+// 代表一个等待周期
+private static class Generation {
+    boolean broken = false;
 }
 ```

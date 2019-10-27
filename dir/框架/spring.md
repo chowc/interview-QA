@@ -1,9 +1,3 @@
-### 参考资料
-
-- [《Spring 揭秘》](https://book.douban.com/subject/3897837/)
-
----
-
 ### Spring
 
 - [Tomcat 如何启动一个 Spring 项目？](https://zouzls.github.io/2017/03/29/SpringStart/)
@@ -71,7 +65,7 @@ IOC 有三种实现方式（《Spring 揭秘》2.2）：构造方法注入、set
 
 代理的实现可以分为编译时的字节码增强或者是运行时代理，前者例如 AspectJ，后者则包括 Java 中的动态代理以及 cglib。
 
-[Spring AOP 的实现主要是使用了 Java 动态代理以及 cglib](https://docs.spring.io/spring/docs/2.5.x/reference/aop.html)，因为 Java 动态代理需要目标类实现了某个接口，因此对于实现了接口的代理类采用的是 Java 动态代理，而没有实现接口的类则通过 cglib 生成代理类的子类，因此对于 final 修饰的类无法通过 cglib 生成代理类。
+[Spring AOP 的实现主要是使用了 Java 动态代理以及 cglib](https://docs.spring.io/spring/docs/2.5.x/reference/aop.html)，因为 Java 动态代理需要目标类实现了某个接口，因此对于实现了接口的代理类采用的是 Java 动态代理。而没有实现接口的类则通过 cglib 生成代理类的子类，因此对于 final 修饰的类无法通过 cglib 生成代理类。
 
 具体获取哪个代理策略是通过调用 `org.springframework.aop.framework.DefaultAopProxyFactory implements AopProxyFactory` 的 `createAopProxy(AdvisedSupport config)` 完成的，代码如下：
 
@@ -94,6 +88,10 @@ public AopProxy createAopProxy(AdvisedSupport config) throws AopConfigException 
 }
 ``` 
 
+代理对象的创建调用路径如下：
+
+![image](../img/spring_aop.png)
+
 - Java 动态代理的实现
 
 通过 `java.lang.reflect.Proxy.newProxyInstance(ClassLoader loader, Class<?>[] interfaces, InvocationHandler h)` 来动态生成代理类，代理类本身实现了传入的接口类并且继承了 Proxy，对被代理对象的实际方法调用是通过  `InvocationHandler.invoke(Object proxy, Method method, Object[] args)` 完成的。
@@ -101,7 +99,7 @@ public AopProxy createAopProxy(AdvisedSupport config) throws AopConfigException 
 - Java 动态代理和 cglib 动态代理的区别（经常结合 spring 一起问所以就放这里了）
 
 1. 实现的方式不同，Java 动态代理是通过动态生成一个实现了被代理接口的类，并且通过 `InvocationHandler.invoke(Object proxy, Method method, Object[] args)` 进行委托调用的；而 cglib 是通过动态生成被代理对象的子类；
-2. Java 动态代理的对象需要实现某个接口，而 cglib 的代理对象不需要；但是 cglib 代理的对象类不能是 final 的，代理方法不能是 final 的。
+2. Java 动态代理的对象需要实现某个接口，而 cglib 的代理对象不需要；但是 cglib 代理的对象类不能是 final 的，否则报错；方法不能是 static/final/private 的，否则无法进行代理。
 
 - [手写动态代理的示例代码](动态代理.md)
 
@@ -110,7 +108,7 @@ public AopProxy createAopProxy(AdvisedSupport config) throws AopConfigException 
 1. 检查缓存中是否有对应的单例 bean，有就直接返回；
 2. 没有的话，就先获取 bean RootBeanDefinition；
 3. 先处理 bean 依赖的对象（`depends-on` 定义的依赖关系而不是对象属性的依赖）；
-4. 根据 RootBeanDefinition 的不同类型（）进行相应的创建逻辑：
+4. 根据 RootBeanDefinition 的不同类型进行相应的创建逻辑：
     1. singleton：IOC 容器中有且只有一个对象，多次调用 `getBean` 返回同一个对象；
     2. prototype：每次调用 `getBean` 返回一个新对象；
     3. scope：
@@ -123,13 +121,17 @@ public AopProxy createAopProxy(AdvisedSupport config) throws AopConfigException 
 
 当 IOC 容器是 ApplicationContext 时，singleton bean 的生命周期如下图，其中，如果使用的不是 ApplicationContext 而是 BeanFactory 的话，则 “调用 ApplicationContextAware 的 setApplicationContext 方法”这一阶段不会出现，另外这一阶段实际上是在 ApplicationContextAwareProcessor 这个 BeanPostProcessor 的 `postProcessBeforeInitialization` 方法中执行的。
 
-![image](../img/spring_bean_lifecycle.jpg)
+如果 bean 实现了 InitializingBean 接口，则会调用 `afterPropertiesSet`，比通过反射调用 init-method 指定的方法效率相对来说要高点。但是 init-method 方式消除了对 spring 的依赖。两种方式可以同时使用。
+
+如果 bean 实现了 DisposableBean 接口，则会调用 `destroy()`，也可以通过 destory-method 指定一个 bean 销毁时的调用方法，两者可以同时使用。
+
+![image](../img/spring_bean_lifecycle.png)
 
 - BeanFactory 和 ApplicationContext 的区别。
 
 Sping 的容器可以分为两种类型：
 1. `org.springframework.beans.factory.BeanFactory`：是最简单的容器，提供了基本的依赖注入支持，默认使用延迟初始化策略。最常用的 BeanFactory 实现就是 XmlBeanFactory 类，它根据 XML 文件中的定义加载 beans，该容器从 XML 文件读取配置元数据并用它去创建一个完全配置的系统或应用，适合资源有限且功能要求不是很严格的场景；
-2. `org.springframework.context.ApplicationContext`：BeanFactory 的简介子类，除了 BeanFactory 拥有的功能外，还提供了诸如事件发布、国际化支持等。ApplicationContext 管理的对象默认在容器启动后进行初始化。适合系统资源充足，且要求更多功能的场景。
+2. `org.springframework.context.ApplicationContext`：BeanFactory 的间接子类，除了 BeanFactory 拥有的功能外，还提供了诸如事件发布、国际化支持等。ApplicationContext 管理的对象默认在容器启动后进行初始化。适合系统资源充足，且要求更多功能的场景。
 
 ```java
 // BeanFactory 调用代码示例
@@ -149,7 +151,7 @@ DemoService demo = (DemoService) ctx.getBean("demo");
 
 - 什么是 FactoryBean？
 
-FactoryBean 是 Spring 提供的接口，可以通过实现它来定义对某个类的实例化规则，即实现一个简单工厂类。对于这个类的依赖，可以通过 `FactoryBean.getObject()` 方法返回的对象作为依赖注入。
+FactoryBean 是 Spring 提供的接口，可以通过实现它来定义对某个类的实例化规则，即实现一个简单工厂类。如果有其他对象依赖了这个类，可以通过 `FactoryBean.getObject()` 方法返回的对象进行依赖注入。
 
 适用场景有：
 
@@ -203,9 +205,11 @@ Connection.getMetaData().supportsSavepoints();
 1. Service 类(一般不建议在接口上)上添加 `@Transactional`，可以将整个类纳入spring事务管理，在每个业务方法执行时都会开启一个事务，不过这些事务采用相同的管理方式；
 
 > Spring 推荐将 @Transactional 注解标注于具体的业务实现类或者实现类的业务方法上。之所以如此，是因为 Spring AOP 可以采用两种方式来生成代理对象（动态代理或者 cglib），如果将 @Transactional 标注于业务接口的定义上，那么，当使用动态代理机制构建代理对象时，读取接口定义上的 @Transactional 信息是没有问题的，可是当使用 cglib 构建代理对象的时候，则无法读取接口上定义的 @Transactional 信息。
->
+> （因为 cglib 采用的是继承实现代理，当注解是用在接口上时，接口的实现类获取不到接口的注解元数据，只有注解使用在具体的实现类上时，其子类才能获取到注解元数据。）
 > 《Spring 揭秘》20.2.3
 
+
+默认情况下，只有来自外部的方法调用才会被 AOP 代理捕获，也就是，类内部方法调用本类内部的其他方法并不会引起事务行为，即使被调用方法使用 `@Transactional` 注解进行修饰。
 
 2. 默认情况下，Spring 会对 unchecked exception 进行事务回滚；如果是 checked exception 则不回滚，可以通过配置 rollbackFor 指定在发生特定 checked exception 下进行回滚。
 
@@ -234,9 +238,11 @@ Connection.getMetaData().supportsSavepoints();
 
 服务注册中心 Eureka，客户端负载均衡 Ribbon，远程调用 Feign、断路器 Hystrix、配置中心 Config、路由及权限控制、负载均衡的 Zuul、消息总线 Bus。
 
+服务注册、服务消费、eureka 节点之间的数据同步、eureka 注册信息更新、一级二级缓存、自我保护机制 
+
 - Eureka 互相注册可以吗
 
-Eureka Server 默认模式为多实例，可以通过 `eureka.client.registerWithEureka=false` 来关闭此行为，以避免日志警告。
+**Eureka Server 默认模式为多节点**，可以通过 `eureka.client.registerWithEureka=false` 来关闭此行为，以避免日志警告。
 服务启动后向 Eureka 注册，Eureka Server 之间相互注册，Eureka Server 会将注册信息向其他 Eureka Server 进行同步，当服务消费者要调用服务提供者，则向服务注册中心获取服务提供者地址，然后会将服务提供者地址缓存在本地，下次再调用时，则直接从本地缓存中取，完成一次调用。
 
 客户端启动时，只需要指定其中一个 Eureka 的地址，该服务的信息就会由 Eureka 自动同步到多个 server 上。**客户端在什么时候得到其他 server 的地址，以在指定的 server 挂了的时候进行切换？**
@@ -247,7 +253,16 @@ Eureka Server 默认模式为多实例，可以通过 `eureka.client.registerWit
 
 - Eureka 之间的同步机制是怎样的？服务消费者缓存在本地的信息包括哪些？
 
+服务消费者启动的时候会发送一个 REST 请求给注册中心，获取已注册的服务清单。
+为了性能考虑，Eureka Server 会维护一份只读的服务清单来返回给客户端，同时该缓存清单会隔三十秒刷新一次。
+
+`eureka.client.fetch-registry`：获取服务，默认为 true；
+`eureka.client.registry-fetch-interval-seconds`：缓存清单的更新时间，默认三十秒。
+
 - Eureka 跟客户端之后通过什么协议进行通讯？
+
+通过 HTTP。
+
 - 负载均衡是在客户端还是服务端实现的？
 
 客户端 Ribbon 在进行 Feign 调用的时候。
@@ -284,3 +299,8 @@ client 默认 30 秒发送一次心跳，如果 Eureka 超过 90 秒没有接收
 - Ribbon 和 Zuul 的区别
 
 Zuul 是负责外部调用内部服务的时候进行统一的鉴权、流量过滤、服务路由等；而 Ribbon 是负责内部服务之后相互调用时基于负载均衡算法选择一个可用服务提供者。
+
+---
+### 参考资料
+
+- [《Spring 揭秘》](https://book.douban.com/subject/3897837/)

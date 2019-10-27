@@ -34,7 +34,7 @@ protected int tryAcquireShared(int acquires) {
 ```
 - release 
 
-release 实际上是通过调用 Sync 的 `tryReleaseShared(int releases)` 方法来释放持有的资源许可的。需要注意的是，*执行 release 的线程不需要是之前通过 acquire 的线程，也就是说在 Semaphore 中，没有锁持有者的概念。一个线程可以一直进行 release 调用，经过多次 release，permits 的值将超过初始值。*
+release 实际上是通过调用 Sync 的 `tryReleaseShared(int releases)` 方法来释放持有的资源许可的。需要注意的是，**执行 release 的线程不需要是之前通过 acquire 的线程，也就是说在 Semaphore 中，没有锁持有者的概念。另外，一个线程可以一直进行 release 调用，经过多次 release，permits 的值将超过初始值。**
 
 ```java
 public void release() {
