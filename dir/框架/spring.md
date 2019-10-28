@@ -149,6 +149,93 @@ DemoService demo = (DemoService) ctx.getBean("demo");
 
 构造器注入的方式会有循环依赖的问题。换成 setter 方法注入即可解决这个问题。因为 setter 方法注入会首先调用默认构造函数来实例化对象，然后再调用 setter 实现依赖注入。这样在对象实例化的阶段就没有了任何依赖。
 
+- spring 如何解决循环依赖的问题？
+
+spring 对循环依赖的处理有三种情况：
+
+1. 构造器的循环依赖：这种依赖 spring 是处理不了的，直接抛出 `BeanCurrentlylnCreationException` 异常；
+2. 单例模式下的 setter 循环依赖：通过“三级缓存”处理循环依赖；
+3. 非单例循环依赖：无法处理。
+
+spring 单例对象的初始化分为以下三步：
+
+1. createBeanInstance：实例化，其实也就是调用对象的构造方法实例化对象；
+2. populateBean：填充属性，这一步主要是对 bean 的依赖属性进行填充；
+3. initializeBean：调用配置的 init-method。
+
+spring 中定义了三级缓存：
+
+1. singletonObjects：缓存初始化完成的单例对象。
+2. earlySingletonObjects：缓存提前暴光的单例对象；
+3. singletonFactories：缓存单例对象的对象工厂；
+
+BeanA 和 BeanB 相互依赖，现在先调用 `beanFactory.getBean("beanA");`，创建一个 BeanA 实例（原始对象而不是 BeanWrapper），並调用 `addSingletonFactory("beanA", singletonFactory);`，其中 `singletonFactory.getObject()` 负责返回上面创建的 BeanA 实例，然后进入 `populateBean("beanA", mbd, instanceWrapper);`，对 BeanA 实例进行属性填充，在这时需要填充 BeanB 的依赖。
+
+进入 `beanFactory.getBean("beanB");`，流程跟上面一致，直到 `populateBean("beanB", mbd, instanceWrapper);`，此时需要填充 BeanA 的依赖，调用 `beanFactory.getBean("beanA");`，从而再调用到 `getSingleton("beanA", true);`，从三级缓存 singletonFactories 中取出 BeanA 加入的 singletonFactory，调用 getObject() 方法得到 BeanA 实例，然后完成 BeanB 的后续处理，然后调用 `addSingleton("beanB", beanB 对象);` 来将 beanB 的二三级缓存删除，只留下以及缓存，完成 BeanB 的创建。
+
+创建完 BeanB 后，继续 BeanA 的后续处理。然后调用 `addSingleton("beanA", beanA 对象);` 来将 beanA 的二三级缓存删除，只留下以及缓存，完成 BeanA 的创建。
+
+结束。
+
+```java
+// org.springframework.beans.factory.support.DefaultSingletonBeanRegistry
+
+/** Cache of singleton objects: bean name --> bean instance */
+private final Map<String, Object> singletonObjects = new ConcurrentHashMap<String, Object>(256);
+/** Cache of singleton factories: bean name --> ObjectFactory */
+private final Map<String, ObjectFactory<?>> singletonFactories = new HashMap<String, ObjectFactory<?>>(16);
+/** Cache of early singleton objects: bean name --> bean instance */
+private final Map<String, Object> earlySingletonObjects = new HashMap<String, Object>(16);
+
+protected void addSingletonFactory(String beanName, ObjectFactory<?> singletonFactory) {
+    Assert.notNull(singletonFactory, "Singleton factory must not be null");
+    synchronized (this.singletonObjects) {
+        if (!this.singletonObjects.containsKey(beanName)) {
+            this.singletonFactories.put(beanName, singletonFactory);
+            this.earlySingletonObjects.remove(beanName);
+            this.registeredSingletons.add(beanName);
+        }
+    }
+}
+
+protected Object getSingleton(String beanName, boolean allowEarlyReference) {
+    // 从一级缓存获取 bean，没有的话就从二级缓存获取
+    Object singletonObject = this.singletonObjects.get(beanName);
+    // 一级缓存没有，且该 bean 正在创建过程中
+    if (singletonObject == null && isSingletonCurrentlyInCreation(beanName)) {
+        synchronized (this.singletonObjects) {
+            // 从二级缓存获取
+            singletonObject = this.earlySingletonObjects.get(beanName);
+
+            if (singletonObject == null && allowEarlyReference) {
+                // 获取该 bean 对应的 FactoryBean，第一次获取时没有对应的 ObjectFactory，需要通过 addSingletonFactory 添加进去。
+                ObjectFactory<?> singletonFactory = this.singletonFactories.get(beanName);
+                if (singletonFactory != null) {
+                    // 通过 FactoryBean 创建对象
+                    singletonObject = singletonFactory.getObject();
+                    // 从三级缓存移动到二级缓存
+                    this.earlySingletonObjects.put(beanName, singletonObject);
+                    this.singletonFactories.remove(beanName);
+                }
+            }
+        }
+    }
+    return (singletonObject != NULL_OBJECT ? singletonObject : null);
+}
+
+// 清空二三级缓存，移动到一级缓存
+protected void addSingleton(String beanName, Object singletonObject) {
+    synchronized (this.singletonObjects) {
+        this.singletonObjects.put(beanName, singletonObject);
+        this.singletonFactories.remove(beanName);
+        this.earlySingletonObjects.remove(beanName);
+        this.registeredSingletons.add(beanName);
+    }
+}
+```
+- 为什么需要三级缓存？二级缓存可以吗？
+- 循环依赖注入的是未完全初始化的 bean，需要怎么处理？
+
 - 什么是 FactoryBean？
 
 FactoryBean 是 Spring 提供的接口，可以通过实现它来定义对某个类的实例化规则，即实现一个简单工厂类。如果有其他对象依赖了这个类，可以通过 `FactoryBean.getObject()` 方法返回的对象进行依赖注入。
@@ -207,7 +294,6 @@ Connection.getMetaData().supportsSavepoints();
 > Spring 推荐将 @Transactional 注解标注于具体的业务实现类或者实现类的业务方法上。之所以如此，是因为 Spring AOP 可以采用两种方式来生成代理对象（动态代理或者 cglib），如果将 @Transactional 标注于业务接口的定义上，那么，当使用动态代理机制构建代理对象时，读取接口定义上的 @Transactional 信息是没有问题的，可是当使用 cglib 构建代理对象的时候，则无法读取接口上定义的 @Transactional 信息。
 > （因为 cglib 采用的是继承实现代理，当注解是用在接口上时，接口的实现类获取不到接口的注解元数据，只有注解使用在具体的实现类上时，其子类才能获取到注解元数据。）
 > 《Spring 揭秘》20.2.3
-
 
 默认情况下，只有来自外部的方法调用才会被 AOP 代理捕获，也就是，类内部方法调用本类内部的其他方法并不会引起事务行为，即使被调用方法使用 `@Transactional` 注解进行修饰。
 
