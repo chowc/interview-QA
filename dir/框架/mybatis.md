@@ -35,38 +35,68 @@ public class MapperProxyFactory<T> {
 
 
 public class MapperProxy<T> implements InvocationHandler, Serializable {
-    private static final long serialVersionUID = -6424540398559729838L;
-    private final SqlSession sqlSession;
-    private final Class<T> mapperInterface;
-    private final Map<Method, MapperMethod> methodCache;
+  // 关联的 sqlSession 对象
+  private final SqlSession sqlSession;
+  // 目标接口，即 Mapper 接口对应的 class 对象
+  private final Class<T> mapperInterface;
+  // 方法缓存，用于缓存 MapperMethod对象，key 为 Mapper 接口中对应方法的 Method 对象，value 则是对应的 MapperMethod，MapperMethod 会完成参数的转换和 SQL 的执行功能
+  private final Map<Method, MapperMethod> methodCache;
 
-    public MapperProxy(SqlSession sqlSession, Class<T> mapperInterface, Map<Method, MapperMethod> methodCache) {
-        this.sqlSession = sqlSession;
-        this.mapperInterface = mapperInterface;
-        this.methodCache = methodCache;
+  public MapperProxy(SqlSession sqlSession, Class<T> mapperInterface, Map<Method, MapperMethod> methodCache) {
+    this.sqlSession = sqlSession;
+    this.mapperInterface = mapperInterface;
+    this.methodCache = methodCache;
+  }
+  
+  // 代理对象执行的方法，代理以后，所有 Mapper 的方法调用时，都会调用这个invoke方法
+  @Override
+  public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
+     // 并不是每个方法都需要调用代理对象进行执行，如果这个方法是Object中通用的方法，则无需执行
+     if (Object.class.equals(method.getDeclaringClass())) {
+        return method.invoke(this, args);
+      // 如果是默认方法，则执行默认方法，Java 8 提供了默认方法
+      } else if (isDefaultMethod(method)) {
+        return invokeDefaultMethod(proxy, method, args);
+      }
+     // 从缓存中获取 MapperMethod 对象，如果缓存中没有，则创建一个，并添加到缓存中
+     final MapperMethod mapperMethod = cachedMapperMethod(method);
+     // 执行方法对应的 SQL 语句
+     return mapperMethod.execute(sqlSession, args);
+  }
+  // 缓存 MapperMethod 
+  private MapperMethod cachedMapperMethod(Method method) {
+    MapperMethod mapperMethod = methodCache.get(method);
+    if (mapperMethod == null) {
+      mapperMethod = new MapperMethod(mapperInterface, method, sqlSession.getConfiguration());
+      methodCache.put(method, mapperMethod);
     }
-
-    public Object invoke(Object proxy, Method method, Object[] args) throws Throwable {
-    	// 不是接口类就直接调用对象的方法
-        if (Object.class.equals(method.getDeclaringClass())) {
-            return method.invoke(this, args);
-        } else {
-        	// 接口类先缓存，再调用 
-            MapperMethod mapperMethod = this.cachedMapperMethod(method);
-            return mapperMethod.execute(this.sqlSession, args);
-        }
-    }
-
-    private MapperMethod cachedMapperMethod(Method method) {
-        MapperMethod mapperMethod = (MapperMethod)this.methodCache.get(method);
-        if (mapperMethod == null) {
-            mapperMethod = new MapperMethod(this.mapperInterface, method, this.sqlSession.getConfiguration());
-            this.methodCache.put(method, mapperMethod);
-        }
-
-        return mapperMethod;
-    }
+    return mapperMethod;
+  }
 }
+```
+- mybatis 中接口中可以有方法重载吗？
+
+xml 文件中如果存在 id 相同的两个元素，会抛出异常，因为相同 namespace+id 需要是唯一的。
+
+语法上允许重载，但是因为 mybatis 中实现方法调用时是使用 “类全限定名+方法名” 作为 sql id，去 xml 中查找对应 id 的 MappedStatement，重载后就会导致两个方法映射到了同一个 sql 上，因此单纯的重载是不行的。
+
+在 Java 8 中，可以通过接口的 default 方法实现方法重载，对于 mapper 接口中的默认方法，mybatis 会直接执行它而不是调用代理对象（MapperProxy 的 invoke 逻辑）。
+```java
+// 1.8
+// mapper 接口代码
+default User findUser(Integer id) {
+  return findUser(id, null);
+}
+User findUser(Integer id, String name);
+```
+```xml
+// 对应的 xml
+<select id="findUser" resultType="User">
+  select from users where id = #{id}
+  <if test="name != null">
+    and name = #{name}
+  </if>
+</select>
 ```
 
 - $ 和 # 的区别
@@ -81,7 +111,7 @@ select * from ${table};
 # table 传入 test
 select * from test;
 ```
-2. # 和 $ 在预编译处理中是不一样的。# 类似 jdbc 中的 PreparedStatement，对于传入的参数，在预处理阶段会使用 ? 代替，比如：
+2. \# 和 $ 在预编译处理中是不一样的。# 类似 jdbc 中的 PreparedStatement，对于传入的参数，在预处理阶段会使用 ? 代替，比如：
 `select * from student where id = ?;`，待真正查询的时候即在数据库管理系统中（DBMS）才会代入参数。
 而 ${} 则是简单的替换，如：`select * from student where id = 2;`
 
@@ -95,6 +125,93 @@ select * from test;
 2. 在程序代码中使用正则表达式过滤参数。使用正则表达式过滤可能造成注入的符号，如单引号等；
 3. jdbc 使用 PreparedStatement 代替 Statement，PreparedStatement  不仅提高了代码的可读性和可维护性.而且也提高了安全性，有效防止 sql 注入。
 
+- mybatis 动态 sql 是做什么的？都有哪些动态 sql？简述一下动态 sql 的执行原理？
+
+1. mybatis 动态 sql 可以让我们在 xml 映射文件内，以标签的形式编写动态 sql，完成逻辑判断和动态拼接 sql 的功能；
+2. mybatis 提供了 9 种动态 sql 标签：`trim|where|set|foreach|if|choose|when|otherwise|bind`；
+3. 其执行原理为，使用 OGNL 从 sql 参数对象中计算表达式的值，根据表达式的值动态拼接 sql，以此来完成动态 sql 的功能。
+
+- 当实体类中的属性名和表中的字段名不一样，怎么办？
+1. 通过 sql 别名，列名不区分大小写，mybatis 会忽略列名大小写：
+```xml
+<select id=”selectorder” parametertype=”int” resultetype=”me.gacl.domain.order”> 
+   select order_id id, order_no orderno ,order_price price form orders where order_id=#{id}; 
+</select> 
+```
+2. 通过 `resultMap` 进行字段映射：
+```xml
+<select id="getOrder" parameterType="int" resultMap="orderresultmap">
+    select * from orders where order_id=#{id}
+</select>
+<resultMap type=”me.gacl.domain.order” id=”orderresultmap”> 
+    <!– order_id 列映射到 id 字段–> 
+    <id property=”id” column=”order_id”> 
+    <result property = “orderno” column =”order_no”/> 
+    <result property=”price” column=”order_price” /> 
+</reslutMap>
+```
+- 如何获取自动生成的(主)键值？
+
+通过 `selectKey` 标签。
+
+1. 自增主键的获取
+```xml
+<insert id="insertAndgetkey" parameterType="com.soft.mybatis.model.User">
+    <!--selectKey  会将 SELECT LAST_INSERT_ID() 的结果放入到传入的 model 的主键，
+        keyProperty 对应 model 的主键属性名，这里是 user 中的 id，因为它跟数据库的主键对应。
+        order=AFTER 表示 SELECT LAST_INSERT_ID() 在 insert 执行之后执行,多用与自增主键，
+              BEFORE 表示 SELECT LAST_INSERT_ID() 在 insert 执行之前执行，这样的话就拿不到主键了，适合那种主键不是自增的类型。
+        resultType 主键类型 -->
+    <selectKey keyProperty="id" order="AFTER" resultType="java.lang.Integer">
+        SELECT LAST_INSERT_ID()
+    </selectKey>
+    insert into t_user (username,password,create_date) values(#{username},#{password},#{createDate})
+</insert>
+```
+```java
+// 这里返回的 int 是被修改的数据行数，生成的主键为 user.id。
+int insertAndGeyKey(User user)
+```
+2. 非自增主键的获取
+```xml
+<insert id="insert" parameterType="com.soft.mybatis.model.Customer">
+    <!-- 跟自增主键方式相比，这里的不同之处只有两点
+                1. insert 语句需要写 id 字段了，并且 values 里面也不能省略；
+                2. selectKey 的 order 属性需要写成 BEFORE 因为这样才能将 uuid 生成的主键放入到 model 中，后面的 insert 的 values 里面的 id 才不会获取为空。
+    -->
+    <selectKey keyProperty="id" order="BEFORE" resultType="String">
+        select uuid()
+    </selectKey>
+    insert into t_customer (id,c_name,c_sex,c_ceroNo,c_ceroType,c_age) values (#{id},#{name},#{sex},#{ceroNo},#{ceroType},#{age})
+</insert>
+```
+- 在 mapper 中如何传递多个参数？
+1. #{0}，#{1} 方式
+```xml
+// 对应的xml,#{0}代表接收的是dao层中的第一个参数，#{1}代表dao层中第二参数，更多参数一致往后加即可。
+<select id="selectUser"resultMap="BaseResultMap">  
+    select *  fromuser_user_t   whereuser_name = #{0} anduser_area=#{1}  
+</select>
+```
+2. `@param` 注解方式
+```java
+public interface Usermapper { 
+    User selectUser(@param("username") String username, @param("hashedpassword") String hashedpassword); 
+}
+```
+```xml
+<select id=”selectUser” resultType=”User”> 
+     select id, username, hashedpassword 
+     from some_table 
+     where username = #{username} 
+     and hashedpassword = #{hashedpassword} 
+</select>
+```
+3. 传入 map 集合作为参数
+
+- mybatis 是如何分页的？
+
+- 
 ---
 
 ### jdbc
@@ -134,3 +251,6 @@ Statement 的 execute 系列方法直接将 sql 语句作为参数传入并提�
 - [mybatis 中 # 与 $ 的区别](https://blog.csdn.net/zymx14/article/details/78067452)
 - [预编译为什么能防止 sql 注入-知乎](https://www.zhihu.com/question/43581628/answer/153847199
 )
+- [常见的 mybatis 面试题](https://my.oschina.net/u/3777556/blog/1633503)
+- [常见的 mybatis 面试题](https://zhuanlan.zhihu.com/p/44412964)
+- [insert 获取生成的主键](https://blog.csdn.net/xu1916659422/article/details/77921912)
