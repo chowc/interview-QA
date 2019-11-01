@@ -119,6 +119,83 @@ select * from test;
 
 因此，能使用 #{} 的地方应尽量使用 #{}；#{} 可以有效防止 sql 注入，${} 则可能导致 sql 注入成功。
 
+- association、colletion 标签的区别
+
+两者都是用于实现 SELECT 中表关联时的字段映射，association 是一对一关联关系，而 collection 则是一对多关联。
+
+一对一的情况：
+```java
+// User 类中有一个 Card 的属性
+public class User {
+    private Integer userId;
+    private String userName;
+    private Integer age;
+    private Card card;//一个人一张身份证,1对1
+}
+
+public class Card {
+    private Integer cardId;
+    private String cardNum;//身份证号
+    private String address;//地址
+}
+```
+
+```xml
+<resultMap type="Card" id="cardMap">
+      <id property="cardId" column="card_id"/>
+      <result property="cardNum" column="card_num"/>
+      <result property="address" column="address"/>
+</resultMap>
+
+<resultMap type="User" id="userMap">
+     <result property="userName" column="user_name"/>
+     <result property="age" column="age"/>
+     <association property="card" resultMap="cardMap"/>
+</resultMap>
+
+// User 的查询被映射到 userMap
+<select id="queryById" parameterType="int" resultMap="userMap">
+    SELECT u.user_name,u.age,c.card_id,c.card_num,c.address
+    FROM tb_user u,tb_card c
+    WHERE u.card_id=c.card_id
+    AND
+    u.user_id=#{userId}
+</select>
+```
+
+一对多的情况：
+```java
+public class User{
+    private Integer userId;
+    private String userName;
+    private Integer age;
+    private List<MobilePhone> mobilePhone;//土豪,多个手机,1对多
+}
+```
+
+```xml
+<resultMap type="MobilePhone" id="mobilephoneMap">
+         <id column="mobile_phone_id" property="mobilePhoneId"/>
+         <result column="brand" property="brand" />
+         <result column="price" property="price" />
+</resultMap>
+
+<resultMap type="User" id="userMap">
+        <result property="userName" column="user_name"/>
+        <result property="age" column="age"/>
+        <collection property="mobilePhone" resultMap="mobilephoneMap"/>
+</resultMap>
+
+<select id="queryById" parameterType="int" resultMap="userMap">
+    SELECT u.user_name,u.age,m.brand,m.price
+    FROM tb_user u,tb_mobile_phone m
+    WHERE m.user_id=u.user_id
+    AND
+    u.user_id=#{userId}
+</select>
+```
+
+
 - 防止 sql 注入的几种方式
 
 1. 在页面输入参数时也进行字符串检测和提交时进行参数检查，同样可以使用正则表达式，不允许特殊符号出现；
