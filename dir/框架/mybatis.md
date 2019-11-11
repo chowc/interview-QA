@@ -195,7 +195,6 @@ public class User{
 </select>
 ```
 
-
 - 防止 sql 注入的几种方式
 
 1. 在页面输入参数时也进行字符串检测和提交时进行参数检查，同样可以使用正则表达式，不允许特殊符号出现；
@@ -233,7 +232,7 @@ public class User{
 
 1. 自增主键的获取
 ```xml
-<insert id="insertAndgetkey" parameterType="com.soft.mybatis.model.User">
+<insert id="insertAndGetKey" parameterType="com.soft.mybatis.model.User">
     <!--selectKey  会将 SELECT LAST_INSERT_ID() 的结果放入到传入的 model 的主键，
         keyProperty 对应 model 的主键属性名，这里是 user 中的 id，因为它跟数据库的主键对应。
         order=AFTER 表示 SELECT LAST_INSERT_ID() 在 insert 执行之后执行,多用与自增主键，
@@ -247,7 +246,7 @@ public class User{
 ```
 ```java
 // 这里返回的 int 是被修改的数据行数，生成的主键为 user.id。
-int insertAndGeyKey(User user)
+int insertAndGetKey(User user)
 ```
 2. 非自增主键的获取
 ```xml
@@ -285,6 +284,104 @@ public interface Usermapper {
 </select>
 ```
 3. 传入 map 集合作为参数
+
+- mybatis 中的缓存
+
+1. 一级缓存：是 SqlSession 级别的缓存，每个 SqlSession 对应一个数据库的会话，SqlSession 通过委托给其对应的 Executor 来执行具体的方法，一级缓存就是 Executor 中的成员变量，因此 session1 添加的缓存在 session2 中不能使用，因此会出现脏数据的问题，*也可以通过将缓存级别设置为 STATEMENT，意味着缓存只在当前 STATEMENT 内有效。；
+2. 二级缓存：是 namespace 的缓存，也就是每个 Mapper 对应一个缓存，如果多个 session 使用同一 Mapper 的 Statement，session2 可以使用 session1 添加的缓存，*需要注意跨表查询的情况下，多表查询语句所在的 namspace 无法感应到其他 namespace 中的语句对多表查询中涉及的表进行的修改，会出现脏数据的问题*。
+
+- mybatis 中的缓存什么时候添加和失效？
+
+在进行 SELECT 操作的时候如果缓存未命中，则查询数据库，将得到的结果加入缓存中；当执行 UPDATE/INSERT/DELETE 操作的时候，清空缓存。
+
+- mybatis 实现批量 Insert？
+
+1. 循环调用 insert
+```java
+User user;
+SqlSession sqlSession = sqlSessionTemplate.getSqlSessionFactory().openSession(false);
+UserDao mapper = sqlSession.getMapper(UserDao.class);
+for (int i = 0; i < 500; i++) {
+    user = new User();
+    user.setId("test" + i);
+    user.setName("name" + i);
+    user.setDelFlag("0");
+    mapper.insert(user);
+}
+sqlSession.commit();
+```
+
+```xml
+<insert id="insert">
+    INSERT INTO t_user (id, name, del_flag) VALUES(#{id}, #{name}, #{delFlag})
+</insert>
+```
+
+2. BATCH 模式插入
+```java
+User user;
+// 跟方法一的区别，指定 ExecutorType 为 BATCH，会使用 BATCHExecutor。
+SqlSession sqlSession = sqlSessionTemplate.getSqlSessionFactory().openSession(ExecutorType.BATCH, false);
+UserDao mapper = sqlSession.getMapper(UserDao.class);
+for (int i = 0; i < 500; i++) {
+    user = new User();
+    user.setId("test" + i);
+    user.setName("name" + i);
+    user.setDelFlag("0");
+    mapper.insert(user);
+}
+sqlSession.commit();
+```
+```xml
+<insert id="insert">
+    INSERT INTO t_user (id, name, del_flag) VALUES(#{id}, #{name}, #{delFlag})
+</insert>
+```
+
+3. foreach 拼接 SQL
+```java
+List<User> list = new ArrayList<>();
+User user;
+for (int i = 0; i < 10000; i++) {
+    user = new User();
+    user.setId("test" + i);
+    user.setName("name" + i);
+    user.setDelFlag("0");
+    list.add(user);
+}
+userService.insertBatch(list);
+```
+
+```xml
+<insert id="insertBatch">
+    INSERT INTO t_user
+            (id, name, del_flag)
+    VALUES
+    <foreach collection ="list" item="user" separator =",">
+         (#{user.id}, #{user.name}, #{user.delFlag})
+    </foreach >
+</insert>
+```
+
+**SQL 长度受到 max_allowed_packet 参数的限制，默认为 4M（版本 <= 8.0.2）/64M（版本 >= 8.0.3）。**
+
+推荐使用方法三，因为效率高，且一条记录插入失败，则全部回滚（因为是同一条 SQL）。
+
+- `org.apache.ibatis.executor.BatchExecutor` 的实现
+
+实际上是通过 jdbc 的`statement.addBatch(sql);` 和 `statement.executeBatch()` 实现的。
+
+```java
+connection.setAutoCommit(false);
+Statement stmt = connection.createStatement();
+
+stmt.addBatch("INSERT INTO employees VALUES (1000, 'Joe Jones')");
+stmt.addBatch("INSERT INTO departments VALUES (260, 'Shoe')");
+stmt.addBatch("INSERT INTO emp_dept VALUES (1000, 260)");
+
+// 提交一批要执行的更新命令
+int[] updateCounts = stmt.executeBatch();
+```
 
 - mybatis 是如何分页的？
 
@@ -331,3 +428,4 @@ Statement 的 execute 系列方法直接将 sql 语句作为参数传入并提�
 - [常见的 mybatis 面试题](https://my.oschina.net/u/3777556/blog/1633503)
 - [常见的 mybatis 面试题](https://zhuanlan.zhihu.com/p/44412964)
 - [insert 获取生成的主键](https://blog.csdn.net/xu1916659422/article/details/77921912)
+- [mybatis 的三种批量插入](https://cloud.tencent.com/developer/article/1349729)
