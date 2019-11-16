@@ -30,6 +30,8 @@ static int exclusiveCount(int c) { return c & EXCLUSIVE_MASK; }
 
 允许持有写锁的线程多次获取同一写锁（可重入）；允许多个线程同时获取读锁（不论是不是已经获取过读锁的线程）。
 
+另外，**为了防止写锁在多次读锁之后的饥饿现象，当使用非公平策略，在加一个读锁时，如果当前第一个排队线程是要加写锁的话，就会将加读锁线程加入排队**。
+
 - 加读锁操作调用的是 AQS 的 acquireShared，也就是调用了子类的 tryAcquireShared
 ```java
 /**

@@ -1,8 +1,19 @@
-- Mybatis DAO 接口为什么不需要实现类？
+- mybatis 中的对象
 
-Mybatis 通过 JDK 动态代理提供了 Mapper 接口的代理对象，在执行 Mapper 接口方法时，实际执行的是其代理对象，代理对象在 invoke 方法内获取 Mapper “接口类全名+方法全名”作为 statement 的 ID，然后通过 ID 去匹配注册的 SQL，然后使用 SqlSession 执行这个 SQL。
+1. SqlSession/SqlSessionFactory
+2. MapperProxy/MapperProxyFactory
 
-所以，这也解释了为什么 Mybatis 映射文件需要 namespace 和 id，前者是类全名，后者是方法名。
+使用 `@Mapper` 来避免在 xml 中写 sql。
+
+3. Executor
+4. MappedStatement
+5. Transaction 
+
+- mybatis DAO 接口为什么不需要实现类？
+
+mybatis 通过 JDK 动态代理提供了 Mapper 接口的代理对象，在执行 Mapper 接口方法时，实际执行的是其代理对象，代理对象在 invoke 方法内获取 Mapper “接口类全名+方法全名”作为 statement 的 ID，然后通过 ID 去匹配注册的 SQL，然后使用 SqlSession 执行这个 SQL。
+
+所以，这也解释了为什么 mybatis 映射文件需要 namespace 和 id，前者是类全名，后者是方法名。
 
 通过 `MapperProxyFactory` 为接口生成代理类，並传入 `MapperProxy` 处理代理逻辑。
 
@@ -165,7 +176,7 @@ public class Card {
 
 一对多的情况：
 ```java
-public class User{
+public class User {
     private Integer userId;
     private String userName;
     private Integer age;
