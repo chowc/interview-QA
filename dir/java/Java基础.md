@@ -167,3 +167,78 @@ hashCode() {
 另外，对 31 的运算可以进行优化从而提高效率：
 
 `31 * i == (i << 5) - i`
+
+- String 对象的创建
+
+> JLS 3.10.5
+
+> All literal strings and string-valued constant expressions are interned.
+
+```java
+// 字面量赋值的方式实际上是使用了 String.intern 方法，因此返回的是相同对象
+package testPackage;
+class Test { 
+    public static void main(String[] args) { 
+        String hello = "Hello", lo = "lo"; 
+        // 字面量赋值，是相同对象
+        System.out.print((hello == "Hello") + " "); 
+        System.out.print((Other.hello == hello) + " "); 
+        System.out.print((other.Other.hello == hello) + " "); 
+        // 字面量运算也是相同对象，实际上在编译时就已得到结果 “Hello”。创建了 "Hel" 和 "lo" 对象，并返回已有的 "Hello" 对象。
+        System.out.print((hello == ("Hel"+"lo")) + " "); 
+        // 运行时运算返回的是新创建的对象
+        System.out.print((hello == ("Hel"+lo)) + " ");
+        // 通过 intern 来复用已有对象
+        System.out.println(hello == ("Hel"+lo).intern());
+        //true true true true false true
+    }
+} 
+
+class Other { static String hello = "Hello"; }
+
+package other; 
+
+public class Other { 
+    public static String hello = "Hello"; 
+}
+```
+
+```java
+String s = new String("abc");
+// 会创建一个 "abc" 字符串（如果已存在字符串常量池中，则不需要创建），並加入到字符串常量池中，然后再通过 new 关键字新建一个 String 对象，因此 new String("abc") 可能创建一个或两个对象。
+String t = "abc";
+// 则直接将 t 的引用指向了常量池中的 "abc"。
+
+// 在 new String("abc") 的时候，已经将 "abc" 加入到常量池中，因此 intern 的调用不起作用。
+s.intern();
+
+// 在 Java 6 中，字面量的赋值先去常量池查找，找到了 "abc" 的字符串，返回常量池中这个引用；
+// 在 Java 7 中，在常量池中查找，但是查找到的不是 "abc" 的字符串，而是指向 s 的引用。
+String s1 = "abc";
+
+// 创建 s3 的时候不会将 "11" 添加到常量池中，因为是运行时生成的。
+String s3 = new String("1") + new String("1");
+
+//在 Java 6 中将 "11" 字符串加入到常量池中，s3 仍存在于堆中；
+// 在 Java 7 中字符串常量池存在于堆中，所以可以直接存储堆中的引用，因此会在常量池中添加一个指向 s3 的引用。
+s3.intern();
+
+// Java 6 中，在常量池中查找，並返回 "11" 的引用；
+// Java 7 中，在常量池中查找，但是返回的是指向 s3 的引用，因此 s3==s4。
+String s4 = "11";
+```
+
+只有使用引号包含文本的方式创建的 String 对象之间使用 “+” 连接产生的新对象才会被加入字符串池中。对于所有包含 new 方式新建对象（包括 null）的 “+” 连接表达式，它所产生的新对象都不会被加入字符串池中。
+
+Java 7 将字符串常量池从 perm 区移动到了堆上，并且在调用 `String.intern` 方法时，如果存在堆中的对象，会直接保存对象的引用，而不是将 String 对象的字符串加到常量池中。
+
+String 的 String Pool 是一个固定大小的 Hashtable，默认值大小长度是 1009，如果放进 String Pool 的 String 非常多，就会造成 Hash 冲突严重，从而导致链表会很长，而链表长了后直接会造成的影响就是当调用 `String.intern` 时性能会大幅下降（因为要一个一个找）。
+
+在 jdk6 中 StringTable 是固定的，就是 1009 的长度，所以如果常量池中的字符串过多就会导致效率下降很快。在 jdk7 中，StringTable 的长度可以通过一个参数指定：
+
+`-XX:StringTableSize=99991`。
+
+---
+参考：
+
+- [深入解析 String#intern](https://tech.meituan.com/2014/03/06/in-depth-understanding-string-intern.html)

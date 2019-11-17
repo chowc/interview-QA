@@ -127,6 +127,12 @@ channel.configureBlocking(false);
 SelectionKey key = channel.register(selector, SelectionKey.OP_READ);
 ```
 
+- NIO 2
+
+1.7 引入了 NIO 2，即 AIO。
+
+https://juejin.im/post/5b87ff2be51d4538a108c912
+
 - reactor 线程模型是什么?
 
 1. 单请求单线程
