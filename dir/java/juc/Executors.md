@@ -26,8 +26,8 @@ public ThreadPoolExecutor(int corePoolSize,
 
 - 线程池类型
 
-1. `Executors.newSingleThreadExecutor()`：单线程的线程池，适用于串行执行任务的场景，每个任务必须按顺序执行，不需要并发执行；
-2. `Executors.newFixedThreadPool(int nThreads)`：指定线程数量的线程池，所有任务根据调度被获取执行，适用于处理 CPU 密集型的任务，确保 CPU 在长期被工作线程使用的情况下，尽可能的少的分配线程即可。一般线程数设置为 Ncpu+1（具体原因？还是经验值？）；
+1. `Executors.newSingleThreadExecutor()`：core=max=1，keepAliveTime=0，单线程的线程池，适用于串行执行任务的场景，每个任务必须按顺序执行，不需要并发执行；
+2. `Executors.newFixedThreadPool(int nThreads)`：core=max=nThreads，keepAliveTime=0，指定线程数量的线程池，所有任务根据调度被获取执行，适用于处理 CPU 密集型的任务，确保 CPU 在长期被工作线程使用的情况下，尽可能的少的分配线程即可。一般线程数设置为 Ncpu+1（具体原因？还是经验值？）；
 3. `Executors.newCachedThreadPool()`：缓存线程池，在需要的时候会新创建线程，keepAliveTime=60，corePoolSize=0，阻塞队列是 SynchronousQueue，长时间保持空闲的 CachedThreadPool 不会占用任何资源，**用于并发执行大量短期的小任务**；
 4. `Executors.newWorkStealingPool()`：1.8 新增，工作窃取线程池。
 5. `Executors.newScheduledThreadPool(int corePoolSize)`：调度线程池，用于执行定时或延迟执行的任务；
@@ -181,7 +181,7 @@ public void shutdown() {
 
 - 如何提前创建 core thread？
 
-可以通过 `prestartCoreThread()` 来提前创建一个 core thread；或者通过 `prestartAllCoreThreads()` 来提前创建所有 core thread。这在任务队列初始不为空的时候会很有用。
+可以通过 `ThreadPoolExecutor.prestartCoreThread()` 来提前创建一个 core thread；或者通过 `ThreadPoolExecutor.prestartAllCoreThreads()` 来提前创建所有 core thread。这在任务队列初始不为空的时候会很有用。
 
 - 任务拒绝
 
@@ -307,7 +307,7 @@ Worker 继承了 AQS，当 `Worker.tryLock()` 返回 true 时说明当前 Worker
 - 线程池中的哪些线程会被在什么时候被回收？是如何实现的？
 
 1. 非 core 线程：等待任务时间超过 `keepAliveTime` 的线程会被回收； 
-2. core 线程默认不进行回收，但也可以通过方法 `allowCoreThreadTimeOut(boolean value)` 设置进行 core 线程的回收，等待时间一样为 `keepAliveTime`。
+2. core 线程默认不进行回收，但也可以通过方法 `ThreadPoolExecutor.allowCoreThreadTimeOut(boolean value)` 设置进行 core 线程的回收，等待时间一样为 `keepAliveTime`。
 
 - 如何确定线程池的线程数？
 
