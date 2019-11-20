@@ -44,24 +44,6 @@ D 持久性：修改记录到 redo log，即使断电重启了，也可以根据
 可重复读（Repeatable read） | 不加锁|加行锁|
 可串行化（Serializable ）   | 加读锁|加写锁|
 
-- mysql 的行锁、表锁、间隙锁、意向锁分别是做什么的？
-
-1. 行锁：用于锁定一行数据（读/写），锁粒度小，但加锁慢；
-2. 表锁：用于锁定一个表（读/写），锁粒度大，加锁快；
-3. 间隙锁（gap lock）：用于**锁定索引记录之间的间隙**，跟其之后的行锁形成 next-key lock，用于防止幻读，是一个**前开后闭区间**；
-4. 意向锁（意向共享锁IS、意向排他锁IX）：InnoDB 实现的表级锁，用于实现行锁与表锁的共存。**在加行读锁之前，需要先加 IS 或者 IX 锁，在加行写锁之前，需要先加 IX 锁。** 
-
-表共享锁（S）、表排他锁（X)、意向共享锁（IS）、意向排他锁（IX）的兼容关系：
-
-| |X	|IX |S  |IS |
-|---|---|---|---|---|	
-X	|冲突|冲突|冲突|冲突|
-IX	|冲突|兼容|冲突|兼容|
-S	|冲突|冲突|兼容|兼容|
-IS	|冲突|兼容|兼容|兼容|
-
-**IS、IX 之间是兼容的，从而保证意向锁并不会影响到多个事务对不同数据行加排他锁时的并发性。**
-
 - 如何查看意向锁？
 
 ```sql
@@ -116,7 +98,7 @@ show engine innodb status;
 - 主键和聚集索引
 
 1. 如果定义了主键，主键就是聚集索引；
-2. 如果没有定义主键，第一个非空（not null）且唯一（unique）列是聚集索引；
+2. 如果没有定义主键，**第一个非空（not null）且唯一（unique）列是聚集索引**；
 3. 如果没有符合条件的列，会自动创建一个隐藏的 row-id 作为聚集索引。
 
 - 有哪些不同数据结构的索引类型？
@@ -230,7 +212,7 @@ DROP TABLE t_old;
 
 对于 InnoDB 引擎：
 
-1. InnoDB 行锁是通过给索引上的索引项加锁来实现的，这一点MySQL与Oracle不同，后者是通过在数据块中对相应数据行加锁来实现的。当 InnoDB 使用的索引是唯一索引时，这种行锁实现特点意味着：**只有通过索引条件检索数据，InnoDB 才使用行级锁，否则，InnoDB 将给整张表的所有数据行加行锁（待确认）**。
+1. InnoDB 行锁是通过给索引上的索引项加锁来实现的，这一点 MySQL 与 Oracle 不同，后者是通过在数据块中对相应数据行加锁来实现的。当 InnoDB 使用的索引是唯一索引时，这种行锁实现特点意味着：**只有通过索引条件检索数据，InnoDB 才使用行级锁，否则，InnoDB 将加表锁（待确认）**。
 2. DML（增删查改操作）语句自动加 MDL 的读锁，读锁之间不互斥；DDL 语句自动加 MDL 的写锁，写锁之间、写锁与读锁之间互斥。
 
 > Record locks always lock index records, even if a table is defined with no indexes. For such cases, InnoDB creates a hidden clustered index and uses this index for record locking.
@@ -239,7 +221,91 @@ DROP TABLE t_old;
 
 1. 大量更新数据的场景下，如果使用行锁的话需要对许多数据加锁，使用表锁性能更高；
 
+- InnoDB 中的表锁类型
+
+1. 表共享锁（S）
+2. 表排他锁（X)
+3. 意向共享锁（IS）
+4. 意向排他锁（IX）
+5. MDL（meta-data lock）
+6. [AUTO_INC lock](http://mysql.taobao.org/monthly/2016/01/01/#LOCK_AUTO_INC)
+
+> While initializing a previously specified AUTO_INCREMENT column on a table, InnoDB sets an exclusive lock on the end of the index associated with the AUTO_INCREMENT column. While accessing the auto-increment counter, InnoDB uses a specific AUTO-INC table lock mode where the lock lasts only to the end of the current SQL statement, not to the end of the entire transaction. Other clients cannot insert into the table while the AUTO-INC table lock is held.
+
+- mysql 的行锁、表锁、间隙锁、意向锁分别是做什么的？
+
+1. 行锁：用于锁定一行数据（读/写），锁粒度小，但加锁慢；
+2. 表锁：用于锁定一个表（读/写），锁粒度大，加锁快；
+3. 间隙锁（gap lock）：用于**锁定索引记录之间的间隙**，跟其之后的行锁形成 next-key lock，用于防止幻读，是一个**前开后闭区间**；
+4. 意向锁（意向共享锁IS、意向排他锁IX）：InnoDB 实现的表级锁，用于实现行锁与表锁的共存。**在加行读锁之前，需要先加 IS 或者 IX 锁，在加行写锁之前，需要先加 IX 锁。** 
+
+表共享锁（S）、表排他锁（X)、意向共享锁（IS）、意向排他锁（IX）的兼容关系：
+
+| |X	|IX |S  |IS |
+|---|---|---|---|---|	
+X	|冲突|冲突|冲突|冲突|
+IX	|冲突|兼容|冲突|兼容|
+S	|冲突|冲突|兼容|兼容|
+IS	|冲突|兼容|兼容|兼容|
+
+**IS、IX 之间是兼容的，从而保证意向锁并不会影响到多个事务对不同数据行加排他锁时的并发性。**
+
+- [意向表锁的作用](https://www.zhihu.com/question/51513268)
+
+考虑这个例子：
+
+事务A锁住了表中的一行，让这一行只能读，不能写。
+
+之后，事务B申请整个表的写锁。如果事务B申请成功，那么理论上它就能修改表中的任意一行，这与A持有的行锁是冲突的。
+
+数据库需要避免这种冲突，就是说要让B的申请被阻塞，直到A释放了行锁。数据库要怎么判断这个冲突呢？
+
+1. 判断表是否已被其他事务用表锁锁表；
+2. 判断表中的每一行是否已被行锁锁住。
+
+注意step2，这样的判断方法效率实在不高，因为需要遍历整个表。于是就有了意向锁。
+
+
 - InnoDB 什么时候加表锁？
+
+
+1. DDL 操作；
+2. 使用了 `lock tables` 语句显式加锁；
+3. 
+
+> LOCK TABLES sets table locks, but it is the higher MySQL layer above the InnoDB layer that sets these locks. InnoDB is aware of table locks if innodb_table_locks = 1 (the default) and autocommit = 0, and the MySQL layer above InnoDB knows about row-level locks.
+> 
+> Otherwise, InnoDB's automatic deadlock detection cannot detect deadlocks where such table locks are involved. Also, because in this case the higher MySQL layer does not know about row-level locks, it is possible to get a table lock on a table where another session currently has row-level locks. However, this does not endanger transaction integrity, as discussed in Section 15.7.5.2, “Deadlock Detection and Rollback”.
+> 
+> LOCK TABLES acquires two locks on each table if innodb_table_locks=1 (the default). In addition to a table lock on the MySQL layer, it also acquires an InnoDB table lock. Versions of MySQL before 4.1.2 did not acquire InnoDB table locks; the old behavior can be selected by setting innodb_table_locks=0. If no InnoDB table lock is acquired, LOCK TABLES completes even if some records of the tables are being locked by other transactions.
+> 
+> In MySQL 8.0, innodb_table_locks=0 has no effect for tables locked explicitly with LOCK TABLES ... WRITE. It does have an effect for tables locked for read or write by LOCK TABLES ... WRITE implicitly (for example, through triggers) or by LOCK TABLES ... READ.
+> 
+> All InnoDB locks held by a transaction are released when the transaction is committed or aborted. Thus, it does not make much sense to invoke LOCK TABLES on InnoDB tables in autocommit=1 mode because the acquired InnoDB table locks would be released immediately.
+> 
+> You cannot lock additional tables in the middle of a transaction because LOCK TABLES performs an implicit COMMIT and UNLOCK TABLES.
+
+- `lock tables`
+
+在InnoDB下 ，使用表锁要注意以下两点。
+
+（１）使用LOCK TALBES虽然可以给InnoDB加表级锁，但必须说明的是，表锁不是由InnoDB存储引擎层管理的，而是由其上一层ＭySQL Server负责的，仅当autocommit=0、innodb_table_lock=1（默认设置）时，InnoDB层才能知道MySQL加的表锁，ＭySQL Server才能感知InnoDB加的行锁，这种情况下，InnoDB才能自动识别涉及表级锁的死锁；否则，InnoDB将无法自动检测并处理这种死锁。
+
+（２）在用LOCAK TABLES对InnoDB锁时要注意，要将AUTOCOMMIT设为0，否则ＭySQL不会给表加锁；事务结束前，不要用UNLOCAK TABLES释放表锁，因为UNLOCK TABLES会隐含地提交事务；COMMIT或ROLLBACK产不能释放用LOCAK TABLES加的表级锁，必须用UNLOCK TABLES释放表锁，正确的方式见如下语句。
+
+例如，如果需要写表t1并从表t读，可以按如下做：
+
+```sql
+SET AUTOCOMMIT=0;
+
+LOCAK TABLES t1 WRITE, t2 READ, ...;
+
+[do something with tables t1 and here];
+
+COMMIT;
+
+UNLOCK TABLES;
+```
 - MVCC 是怎么实现的？
 
 ### 日志

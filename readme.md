@@ -21,6 +21,7 @@
 #### [zookeeper](./dir/middleware/zk.md)
 #### [netty](./dir/middleware/netty.md)
 #### [tomcat](./dir/middleware/tomcat.md)
+#### [Redis](./dir/middleware/Redis.md)
 
 ### 数据库
 
