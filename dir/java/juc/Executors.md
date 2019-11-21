@@ -71,14 +71,12 @@ public ScheduledThreadPoolExecutor(int corePoolSize) {
 
 ScheduledThreadPoolExecutor 添加任务提供了另外两个方法：
 
-	1. scheduleAtFixedRate() ：按某种速率周期执行
-	2. scheduleWithFixedDelay()：在某个延迟后执行
+	1. scheduleAtFixedRate() ：按某种速率周期执行，如果任务的执行时间超过了任务周期间隔，则需要等待上一个任务执行完了才会开始下一个周期任务；
+	2. scheduleWithFixedDelay()：在某个延迟后执行，任务执行时间不影响延迟，但是其他任务可能占有线程，导致在一个更大的延迟后运行该任务。
 
 两种方法的内部实现都是创建了一个 `ScheduledFutureTask` 对象封装了任务的延迟执行时间及执行周期，并调用 `decorateTask()` 方法转成 `RunnableScheduledFuture` 对象，然后添加到延迟队列中。
 
 其内部的 DelayQueue 封装了一个优先级队列，这个队列会对队列中的 ScheduledFutureTask 进行排序，两个任务的执行 time 不同时，time 小的先执行；否则比较添加到队列中的 ScheduledFutureTask 的顺序号 sequenceNumber，先提交的先执行。
-
-*对于周期执行的任务，如果任务的执行时间超过了任务周期间隔，则需要等待上一个任务执行完了才会开始下一个周期任务*。
 
 6. `Executors.newSingleThreadScheduledExecutor()`：单线程调度线程池，只有一个线程，所有任务顺序执行，如果任务执行报错导致线程终止，会自动新建一个线程。
 
